@@ -1,25 +1,37 @@
 # ClipHunter
 
-ClipHunter will find interesting moments in long videos and generate clips chosen
-by the user. The goal is an MVP with upload, transcription, highlight ranking and
-clip downloads. This repository currently contains **only the backend and local
-infrastructure foundation**. Video processing and business endpoints are not yet
-implemented. A separate contributor owns frontend.
+ClipHunter — веб-приложение для поиска интересных моментов в длинных видео и
+создания клипов из выбранных пользователем фрагментов. Цель MVP — загрузка видео,
+распознавание речи, оценка и ранжирование хайлайтов, нарезка и скачивание клипов.
 
-## Available now
+Сейчас подготовлен **фундамент backend и локальной инфраструктуры**. Код этого
+этапа находится в ветке [`dev`](https://github.com/7howk/ClipHunter/tree/dev).
+В `main` пока опубликовано описание проекта. Обработка видео и бизнес-методы API
+появятся на следующих этапах. Frontend разрабатывает отдельный участник команды.
 
-- FastAPI with `GET /api/v1/health`, Swagger UI and OpenAPI.
-- Validated environment settings and separate Clean Architecture packages.
-- Local PostgreSQL and MinIO with persistent volumes and service health checks.
-- Pytest, Ruff, MyPy and GitHub Actions checks.
+## Что уже готово в dev
 
-Foundation stack: Python 3.12+, FastAPI, Pydantic v2, Uvicorn, PostgreSQL 17,
-MinIO and Docker Compose. SQLAlchemy/Alembic, FFmpeg, Groq, worker/queue and
-Cloudflare R2 integration belong to [later PRs](BACKEND_INFRA_TASK.md).
+- FastAPI с `GET /api/v1/health`, Swagger UI и OpenAPI.
+- Проверка настроек окружения и разделение слоёв по Clean Architecture.
+- Локальные PostgreSQL и MinIO с постоянными томами и проверками готовности.
+- Тесты Pytest, проверки Ruff и MyPy, автоматические проверки GitHub Actions.
 
-## Quick start
+Стек текущего этапа: Python 3.12+, FastAPI, Pydantic v2, Uvicorn, PostgreSQL 17,
+MinIO и Docker Compose. SQLAlchemy/Alembic, FFmpeg, Groq, обработчик фоновых задач
+и интеграция с Cloudflare R2 предусмотрены
+[планом следующих этапов](https://github.com/7howk/ClipHunter/blob/dev/BACKEND_INFRA_TASK.md).
 
-Install Docker with the Compose v2 plugin, then run from repository root:
+## Быстрый запуск
+
+Установите Docker с плагином Compose v2. Получите код из ветки `dev`:
+
+```sh
+git clone --branch dev https://github.com/7howk/ClipHunter.git
+cd ClipHunter
+```
+
+Если репозиторий уже скачан, перейдите в его корень и переключитесь на `dev`.
+Затем выполните:
 
 ```sh
 cp .env.example .env
@@ -27,56 +39,64 @@ docker compose --env-file .env -f infra/docker-compose.yml up --build --wait
 curl --fail http://localhost:8000/api/v1/health
 ```
 
-The response is `{"status":"ok"}`. Sample credentials in `.env.example` are for
-local development; edit the ignored `.env` for your environment.
+Ожидаемый ответ: `{"status":"ok"}`. Значения паролей в `.env.example` предназначены
+для локальной разработки; свои настройки указывайте в игнорируемом Git файле
+`.env`. Первая сборка MinIO из исходного кода может занять несколько минут.
 
-| Service | Local address |
+| Сервис | Локальный адрес |
 | --- | --- |
 | Swagger UI | http://localhost:8000/docs |
 | OpenAPI | http://localhost:8000/openapi.json |
 | PostgreSQL | localhost:5432 |
-| MinIO S3 API | http://localhost:9000 |
-| MinIO console | http://localhost:9001 |
+| S3 API MinIO | http://localhost:9000 |
+| Консоль MinIO | http://localhost:9001 |
 
-All published ports bind to loopback. The API health endpoint checks the API
-process only; Compose checks PostgreSQL and MinIO separately. The foundation API
-does not yet read or write either service.
+Опубликованные порты доступны только с локального компьютера. Метод проверки
+API подтверждает работу процесса приложения; готовность PostgreSQL и MinIO
+проверяется отдельно в Compose. На этом этапе API ещё не читает и не записывает
+данные в базу и объектное хранилище.
 
-Stop while preserving data:
+Остановка с сохранением данных:
 
 ```sh
 docker compose --env-file .env -f infra/docker-compose.yml down
 ```
 
-## Structure and architecture
+## Структура и архитектура
+
+Структура ветки `dev`:
 
 ```text
 backend/
   src/cliphunter/
-    main.py              # composition root
-    domain/              # business rules and repository ports (future)
-    application/         # use cases and service ports (future)
-    infrastructure/      # environment configuration; adapters added later
-    presentation/http/   # health route and response schema
+    main.py              # сборка приложения и подключение компонентов
+    domain/              # границы бизнес-логики и интерфейсов репозиториев
+    application/         # границы сценариев использования и интерфейсов сервисов
+    infrastructure/      # настройки окружения; адаптеры появятся позже
+    presentation/http/   # HTTP-метод проверки состояния и схема ответа
   tests/
   Dockerfile
   pyproject.toml
   requirements.lock
 infra/
   docker-compose.yml
+  minio/Dockerfile
 .github/workflows/checks.yml
 ```
 
-Dependencies point inward. Domain has no framework dependencies; application
-uses ports; infrastructure supplies adapters; presentation translates HTTP.
-Domain/application packages currently document their boundaries without fake
-business implementations or unused subdirectories.
+Зависимости направлены внутрь. Domain не зависит от фреймворков, application
+работает через интерфейсы, infrastructure реализует внешние подключения,
+presentation отвечает за HTTP. Пакеты domain и application пока обозначают
+архитектурные границы; бизнес-функции будут добавляться отдельными PR.
 
-- [Backend setup, checks and API contract](backend/README.md)
-- [Infrastructure, ports, storage and volumes](infra/README.md)
-- [Foundation scope and roadmap](BACKEND_INFRA_TASK.md)
-- [Contributor/agent rules](AGENTS.md)
+## Документация
 
-Feature branches start from `dev` and open PRs into `dev`. Never push directly
-to `main`/`dev`; releases enter `main` through a PR from `dev`. Use Conventional
-Commits and run the documented checks before opening a PR.
+- [Backend: установка, проверки и контракт API](https://github.com/7howk/ClipHunter/blob/dev/backend/README.md)
+- [Инфраструктура: запуск, порты, хранилище и тома](https://github.com/7howk/ClipHunter/blob/dev/infra/README.md)
+- [Объём foundation и план развития](https://github.com/7howk/ClipHunter/blob/dev/BACKEND_INFRA_TASK.md)
+- [Правила работы в репозитории](https://github.com/7howk/ClipHunter/blob/dev/AGENTS.md)
+
+Новые задачи выполняются в отдельных ветках от `dev` и поступают в неё через PR.
+Прямые push в `main` и `dev` запрещены. Релизы переносятся из `dev` в `main`
+отдельным PR. Для коммитов используется Conventional Commits; перед PR необходимо
+выполнить проверки, описанные в документации.

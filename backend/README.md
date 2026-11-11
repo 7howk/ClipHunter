@@ -1,31 +1,33 @@
-# ClipHunter backend
+# Backend ClipHunter
 
-The foundation provides an installable FastAPI application, environment settings,
-a liveness endpoint and API documentation. It does not yet implement projects,
-uploads, database access, storage access, video processing or AI integrations.
+Текущий этап предоставляет устанавливаемое приложение FastAPI, настройки
+окружения, метод проверки работоспособности и документацию API. Создание проектов,
+загрузка файлов, работа с базой и хранилищем, обработка видео и интеграции с ИИ
+предусмотрены следующими этапами.
 
-## Architecture
+## Архитектура
 
-The `src/cliphunter` package separates four layers:
+Пакет `src/cliphunter` разделён на четыре слоя:
 
-| Package | Responsibility |
+| Пакет | Назначение |
 | --- | --- |
-| `domain` | Future business entities and repository ports; standard library only |
-| `application` | Future use cases/DTOs/service interfaces; depends inward |
-| `infrastructure` | Environment settings; future DB/storage/external adapters |
-| `presentation/http` | HTTP routes and Pydantic response schemas |
+| `domain` | Бизнес-сущности и интерфейсы репозиториев; только стандартная библиотека |
+| `application` | Сценарии использования, DTO и интерфейсы сервисов; зависимости направлены внутрь |
+| `infrastructure` | Настройки окружения; в дальнейшем — адаптеры базы, хранилища и внешних сервисов |
+| `presentation/http` | HTTP-маршруты и схемы ответов Pydantic |
 
-`main.py` wires these layers together through `create_app()`. Domain and
-application have no business implementations in this milestone. The health route
-has no business logic and requires no fake use case or repository.
+`main.py` связывает компоненты через фабрику `create_app()`. Реализация
+бизнес-сценариев в domain и application появится позже. Метод проверки состояния
+не содержит бизнес-логики и не требует отдельного сценария или репозитория.
 
-Runtime: Python 3.12–3.14, FastAPI, Pydantic v2/settings, Uvicorn. Tests and checks:
-Pytest, HTTPX2 (Starlette TestClient), Ruff, MyPy. Runtime transitive dependencies are pinned in
-`requirements.lock`; Docker installs them without development tools.
+Для запуска используются Python 3.12–3.14, FastAPI, Pydantic v2/settings и Uvicorn.
+Для тестирования и проверок — Pytest, HTTPX2 (Starlette TestClient), Ruff и MyPy.
+Версии прямых и транзитивных зависимостей приложения закреплены в
+`requirements.lock`; инструменты разработки в Docker-образ не устанавливаются.
 
-## Run without Docker
+## Запуск без Docker
 
-From repository root, using Python 3.12+:
+Выполните из корня репозитория, используя Python 3.12+:
 
 ```sh
 python3 -m venv backend/.venv
@@ -35,42 +37,49 @@ cp .env.example .env
 python -m cliphunter
 ```
 
-Settings load `.env` from the working directory; process environment variables
-take precedence. Run the API from repository root to read the shared `.env`.
-The following settings are active now:
+Если `.env` уже настроен, сохраните его вместо повторного копирования примера.
+Приложение читает `.env` из текущего рабочего каталога; переменные окружения
+процесса имеют приоритет. Для чтения общего `.env` запускайте API из корня
+репозитория. Сейчас используются следующие настройки:
 
-| Variable | Default | Validation |
+| Переменная | По умолчанию | Проверка |
 | --- | --- | --- |
-| `APP_ENV` | `development` | `development`, `test`, `production` |
-| `APP_HOST` | `0.0.0.0` | Nonempty bind address |
-| `APP_PORT` | `8000` | Integer, 1–65535 |
+| `APP_ENV` | `development` | `development`, `test` или `production` |
+| `APP_HOST` | `0.0.0.0` | Непустой адрес для запуска сервера |
+| `APP_PORT` | `8000` | Целое число от 1 до 65535 |
 
-Other `.env.example` values configure Compose or reserve names for later PRs.
-They are not active database/storage/AI connections in the API. Do not log the
-complete settings or environment. Production deployment is outside this PR.
+Остальные значения `.env.example` настраивают Compose или зарезервированы для
+будущих интеграций. API пока не использует их для подключения к базе, хранилищу
+или ИИ. Полные настройки и переменные окружения нельзя записывать в логи.
+Развёртывание в production будет подготовлено отдельно.
 
-For development reload, run from repository root in the activated environment:
+Для автоматического перезапуска при изменениях выполните из корня репозитория
+в активированном окружении:
 
 ```sh
 python -m uvicorn cliphunter.main:create_app --factory --reload --host 127.0.0.1 --port 8000
 ```
 
-## API contract
+## Контракт API
 
-`GET /api/v1/health` returns HTTP 200 and `application/json`:
+`GET /api/v1/health` возвращает HTTP 200 с типом `application/json`:
 
 ```json
 {"status": "ok"}
 ```
 
-This is liveness only. It does not assert DB/storage readiness. No authentication
-or business endpoints are implemented. Swagger: http://localhost:8000/docs;
-OpenAPI: http://localhost:8000/openapi.json. Future business endpoints will use
-`/api/v1` and a documented common error format.
+Метод проверяет работу процесса API. Готовность базы и хранилища проверяется
+отдельно. Авторизация и бизнес-методы ещё не реализованы.
 
-## Checks
+- Swagger UI: http://localhost:8000/docs.
+- OpenAPI: http://localhost:8000/openapi.json.
 
-With the development environment activated, from `backend/`:
+Будущие бизнес-методы будут использовать префикс `/api/v1` и документированный
+единый формат ошибок.
+
+## Проверки
+
+Активируйте окружение разработки и выполните из каталога `backend/`:
 
 ```sh
 ruff check .
@@ -79,13 +88,15 @@ mypy src
 pytest
 ```
 
-Tests exercise the HTTP contract, app factory isolation and configuration
-validation. They require no PostgreSQL, MinIO or API keys. CI runs these checks
-on Python 3.12 and 3.13 and verifies the full Compose stack separately.
+Тесты проверяют HTTP-контракт, независимость экземпляров приложения и валидацию
+настроек. PostgreSQL, MinIO и настоящие API-ключи для них не нужны. GitHub Actions
+запускает проверки на Python 3.12 и 3.13, а также отдельно собирает и проверяет
+полный стек Docker Compose.
 
-## Database migrations
+## Миграции базы данных
 
-There are no ORM models or migrations yet. Do not run Alembic or expect tables
-from this PR. SQLAlchemy 2 and Alembic will be introduced in the database PR.
+ORM-модели и миграции пока отсутствуют. На этом этапе не нужно запускать Alembic;
+таблицы приложения ещё не создаются. SQLAlchemy 2 и Alembic будут добавлены
+в отдельном PR для базы данных.
 
-For container setup, refer to [infrastructure instructions](../infra/README.md).
+Запуск в контейнерах описан в [документации инфраструктуры](../infra/README.md).
