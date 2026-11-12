@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from cliphunter.domain.entities import VideoProject
+from cliphunter.domain.errors import Conflict
 from cliphunter.infrastructure.database.models import HighlightModel, VideoProjectModel
 from cliphunter.infrastructure.database.uow import SqlAlchemyUnitOfWork
 
@@ -46,6 +47,27 @@ async def test_repository_commit_reload_and_rollback(database_url: str) -> None:
             assert await uow.projects.get(uncommitted.id) is None
         await transaction.rollback()
     await engine.dispose()
+
+
+async def test_concurrent_upload_lock_returns_conflict(database_url: str) -> None:
+    engine = create_async_engine(database_url)
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    project = VideoProject(title="Concurrent upload test")
+    try:
+        async with SqlAlchemyUnitOfWork(sessions) as uow:
+            await uow.projects.add(project)
+            await uow.commit()
+        async with SqlAlchemyUnitOfWork(sessions) as first:
+            assert await first.projects.get(project.id, for_update=True) is not None
+            async with SqlAlchemyUnitOfWork(sessions) as second:
+                with pytest.raises(Conflict):
+                    await second.projects.get(project.id, for_update=True)
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                delete(VideoProjectModel).where(VideoProjectModel.id == project.id)
+            )
+        await engine.dispose()
 
 
 async def test_constraints_and_cascading_delete(database_url: str) -> None:

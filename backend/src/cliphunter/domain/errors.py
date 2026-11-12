@@ -19,3 +19,19 @@ class InvalidInput(AppError):
 
 class ServiceUnavailable(AppError):
     code = "service_unavailable"
+
+
+class UploadTooLarge(AppError):
+    code = "upload_too_large"
+
+
+class UnsupportedMedia(AppError):
+    code = "unsupported_media"
+
+
+class InsufficientStorage(AppError):
+    code = "insufficient_storage"
+
+
+class UploadTimedOut(AppError):
+    code = "upload_timed_out"

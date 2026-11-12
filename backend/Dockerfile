@@ -5,7 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
-RUN groupadd --gid 10001 cliphunter \
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 cliphunter \
     && useradd --uid 10001 --gid cliphunter --no-create-home cliphunter
 
 COPY pyproject.toml requirements.lock README.md ./
