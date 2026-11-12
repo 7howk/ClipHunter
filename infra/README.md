@@ -1,18 +1,25 @@
 # Локальная инфраструктура
 
 Требования: Docker Engine/Desktop с Compose v2, поддерживающим `up --wait`,
-и свободные локальные порты 8000, 5432, 9000 и 9001. Другие порты можно задать
+и свободные локальные порты 8080, 8000, 5432, 9000 и 9001. Другие порты можно задать
 в `.env`. Все команды ниже выполняются из корня репозитория.
 
 ## Сервисы
 
 | Сервис | Назначение | Проверка готовности |
 | --- | --- | --- |
+| `web` | Сборка frontend, которую раздаёт nginx; `/api` проксируется в `api` | `GET /` |
 | `api` | Контейнер Python/FastAPI, работающий без прав root | `/api/v1/health` |
 | `postgres` | PostgreSQL 17 с данными в постоянном томе | `pg_isready` |
 | `migrate` | Применение миграций до запуска API | Успешный выход с кодом 0 |
 | `minio-init` | Создание локального закрытого бакета | Успешный выход с кодом 0 |
 | `minio` | Локальное S3-совместимое объектное хранилище | `/minio/health/ready` |
+
+`web` стартует после готовности API. Браузер работает с одним адресом
+http://localhost:8080: nginx отдаёт страницы и передаёт запросы `/api` в контейнер
+`api` потоком, без буферизации, поэтому CORS не нужен, а видео до 500 МиБ не
+задерживается в прокси. Режим работы клиента с API задаёт `VITE_API_MODE`
+(подробно — в `frontend/README.md`); он встраивается при сборке образа.
 
 API запускается после успешной проверки PostgreSQL и MinIO. Одноразовый сервис `migrate` применяет миграции Alembic; затем
 API работает с PostgreSQL. Сервис `minio-init` создаёт локальный бакет, после чего API принимает загрузки в MinIO. FFmpeg установлен ради `ffprobe`, проверяющего загруженные видео.
@@ -34,6 +41,7 @@ docker compose --env-file .env -f infra/docker-compose.yml config --quiet
 docker compose --env-file .env -f infra/docker-compose.yml up --build --wait
 docker compose --env-file .env -f infra/docker-compose.yml ps
 curl --fail http://localhost:8000/api/v1/health
+curl --fail http://localhost:8080/api/v1/health
 curl --fail http://localhost:8000/openapi.json
 curl --fail http://localhost:9000/minio/health/ready
 docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
@@ -58,7 +66,7 @@ Compose читает корневой `.env`, явно указанный в к�
 и `MINIO_ROOT_PASSWORD`; пример содержит значения для локальной разработки.
 Полный вывод конфигурации Compose содержит эти значения, поэтому не публикуйте его.
 
-`APP_PORT`, `POSTGRES_PORT`, `MINIO_PORT` и `MINIO_CONSOLE_PORT` задают порты,
+`WEB_PORT`, `APP_PORT`, `POSTGRES_PORT`, `MINIO_PORT` и `MINIO_CONSOLE_PORT` задают порты,
 доступные с компьютера. Контейнеры обращаются к `postgres:5432`
 и `http://minio:9000`; программы на компьютере — к `localhost`
 с соответствующим опубликованным портом.

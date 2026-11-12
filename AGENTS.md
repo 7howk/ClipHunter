@@ -6,11 +6,17 @@ Write README files and contributor-facing documentation in Russian.
 
 ## Ownership and layout
 
-- This work covers backend, infrastructure, database, integrations and tests.
-- Another contributor owns frontend. Do not create a frontend directory or change
-  frontend code, configuration, pages or design without an explicit request.
+- Two contributors share the repository. One owns backend, infrastructure,
+  database, integrations and their tests; the other owns the frontend.
 - `backend/` contains the Python package, API and tests.
 - `infra/` contains local Docker Compose and infrastructure documentation.
+- `frontend/` contains the React client; its rules are in `frontend/AGENTS.md`
+  and its agent definition is `.claude/agents/frontend-developer.md`.
+- Backend and infrastructure work must not change frontend code, configuration,
+  pages or design without an explicit request. Frontend work must not change
+  `backend/` or `infra/`, except the `web` Compose service and the `frontend` CI job.
+- The REST API contract is the boundary between them: backend documents it in
+  OpenAPI; frontend mirrors it in `frontend/src/shared/api/contracts.ts`.
 - Follow the additional AGENTS.md in each directory.
 
 ## Architecture
@@ -37,6 +43,8 @@ Add modules when they have a real purpose, rather than empty directory trees.
 - Use Python 3.12+, type hints, Pydantic v2, Ruff, MyPy and Pytest.
 - From `backend/`, run `ruff check .`, `ruff format --check .`, `mypy src`,
   and `pytest` before submitting changes. Validate Compose from repository root.
+- From `frontend/`, run `npm run typecheck`, `npm run lint`, `npm run lint:fsd`,
+  `npm run format:check`, `npm test` and `npm run build` before submitting changes.
 - Test meaningful API and business behavior; mock external APIs in unit tests.
   Unit tests must not require running services or real API keys.
 - Verify startup and applicable service health before opening a PR; report any

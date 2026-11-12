@@ -1,0 +1,112 @@
+.panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) 3fr;
+  gap: var(--space-8);
+  align-items: center;
+  padding: var(--space-6);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-xl);
+  background: var(--sheet);
+}
+
+.mascot {
+  height: 260px;
+}
+
+.body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+.hint {
+  max-width: 52ch;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.steps {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 20px auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 36px;
+  font-size: var(--text-sm);
+}
+
+.marker {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--hair-strong);
+}
+
+.marker svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+}
+
+.step[data-state='done'] .marker {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--sheet);
+}
+
+.step[data-state='current'] .marker {
+  border-color: var(--rec);
+  background: var(--rec);
+  animation: blink 0.8s steps(1) infinite;
+}
+
+.step[data-state='next'] .label {
+  color: var(--ink-3);
+}
+
+.label {
+  font-weight: 500;
+}
+
+.stepHint {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (max-width: 760px) {
+  .panel {
+    grid-template-columns: 1fr;
+  }
+
+  .mascot {
+    height: 200px;
+  }
+
+  .step {
+    grid-template-columns: 20px 1fr;
+  }
+
+  .stepHint {
+    grid-column: 2;
+    margin-top: -8px;
+    padding-bottom: var(--space-2);
+  }
+}

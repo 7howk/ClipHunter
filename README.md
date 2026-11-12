@@ -8,7 +8,9 @@ ClipHunter — веб-приложение для поиска интересн�
 этапа находится в ветке [`dev`](https://github.com/7howk/ClipHunter/tree/dev).
 В `main` пока опубликовано описание проекта. Создание, список, просмотр проектов и их статусы уже доступны.
 Видео загружается в S3-совместимое хранилище с проверкой формата, размера
-и длительности. Обработка видео появится на следующих этапах. Frontend разрабатывает отдельный участник команды.
+и длительности. Обработка видео появится на следующих этапах. Клиент на React
+подключён к API: проекты и загрузка идут в backend, а ещё не реализованные этапы
+(поиск моментов и нарезка) интерфейс пока имитирует с явной пометкой.
 
 ## Что уже готово в dev
 
@@ -19,6 +21,8 @@ ClipHunter — веб-приложение для поиска интересн�
 - Проверка настроек окружения и разделение слоёв по Clean Architecture.
 - Локальные PostgreSQL и MinIO с постоянными томами и проверками готовности.
 - Тесты Pytest, проверки Ruff и MyPy, автоматические проверки GitHub Actions.
+- Frontend: лендинг, страница загрузки и страница проекта на React, TypeScript,
+  Redux Toolkit (RTK Query) и React Router, архитектура Feature-Sliced Design.
 
 Стек текущего этапа: Python 3.12+, FastAPI, Pydantic v2, Uvicorn, PostgreSQL 17,
 MinIO, SQLAlchemy 2.0, Alembic, boto3, ffprobe и Docker Compose. Извлечение аудио
@@ -43,12 +47,13 @@ docker compose --env-file .env -f infra/docker-compose.yml up --build --wait
 curl --fail http://localhost:8000/api/v1/health
 ```
 
-Ожидаемый ответ: `{"status":"ok"}`. Значения паролей в `.env.example` предназначены
+Ожидаемый ответ: `{"status":"ok"}`. Интерфейс открывается на http://localhost:8080. Значения паролей в `.env.example` предназначены
 для локальной разработки; свои настройки указывайте в игнорируемом Git файле
 `.env`. Первая сборка MinIO из исходного кода может занять несколько минут.
 
 | Сервис | Локальный адрес |
 | --- | --- |
+| Frontend | http://localhost:8080 |
 | Swagger UI | http://localhost:8000/docs |
 | OpenAPI | http://localhost:8000/openapi.json |
 | PostgreSQL | localhost:5432 |
@@ -105,9 +110,15 @@ backend/
   Dockerfile
   pyproject.toml
   requirements.lock
+frontend/
+  src/                   # app, pages, widgets, features, entities, shared (FSD)
+  nginx/                 # раздача сборки и прокси /api в контейнере web
+  AGENTS.md              # регламент агента клиентской разработки
+  Dockerfile
 infra/
   docker-compose.yml
   minio/Dockerfile
+.claude/agents/          # определение frontend-агента
 .github/workflows/checks.yml
 ```
 
@@ -119,6 +130,7 @@ presentation отвечает за HTTP. В domain описаны четыре �
 ## Документация
 
 - [Backend: установка, проверки и контракт API](https://github.com/7howk/ClipHunter/blob/dev/backend/README.md)
+- [Frontend: стек, архитектура, режимы API и запуск](https://github.com/7howk/ClipHunter/blob/dev/frontend/README.md)
 - [Инфраструктура: запуск, порты, хранилище и тома](https://github.com/7howk/ClipHunter/blob/dev/infra/README.md)
 - [Объём foundation и план развития](https://github.com/7howk/ClipHunter/blob/dev/BACKEND_INFRA_TASK.md)
 - [Правила работы в репозитории](https://github.com/7howk/ClipHunter/blob/dev/AGENTS.md)

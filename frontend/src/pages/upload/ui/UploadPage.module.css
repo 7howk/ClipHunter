@@ -1,0 +1,52 @@
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-16);
+  width: min(100% - var(--gutter) * 2, var(--max));
+  margin: 0 auto;
+  padding: var(--space-16) 0 0;
+}
+
+.main {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.lead {
+  max-width: 56ch;
+  color: var(--ink-2);
+}
+
+.aside {
+  padding-top: var(--space-6);
+  border-top: 2px solid var(--ink);
+}
+
+.asideTitle {
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.after {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.after li::marker {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .page {
+    grid-template-columns: 1fr;
+    gap: var(--space-10);
+    padding-top: var(--space-10);
+  }
+}

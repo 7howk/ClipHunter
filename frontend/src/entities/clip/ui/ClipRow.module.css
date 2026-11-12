@@ -1,0 +1,65 @@
+.row {
+  display: grid;
+  grid-template-columns: 8px 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--hair);
+  font-size: var(--text-sm);
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  background: var(--ink-3);
+}
+
+.row[data-status='processing'] .indicator {
+  background: var(--rec);
+  animation: blink 0.5s steps(1) infinite;
+}
+
+.row[data-status='completed'] .indicator {
+  background: var(--ok);
+}
+
+.row[data-status='failed'] .indicator {
+  background: var(--rec-ink);
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  font-weight: 500;
+}
+
+.download svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}

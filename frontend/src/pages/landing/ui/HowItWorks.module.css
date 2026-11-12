@@ -1,0 +1,97 @@
+.section {
+  width: min(100% - var(--gutter) * 2, var(--max));
+  margin: 0 auto;
+  padding: var(--space-32) 0 0;
+}
+
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: var(--space-8);
+  margin-bottom: var(--space-12);
+}
+
+.lead {
+  max-width: 44ch;
+  color: var(--ink-2);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--ink);
+}
+
+.step {
+  position: relative;
+  padding: var(--space-6) var(--space-6) 0 0;
+}
+
+/* Метка на «таймлайне» над каждым шагом */
+.step::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: 2px;
+  height: 14px;
+  background: var(--ink);
+}
+
+.number {
+  display: block;
+  margin-bottom: var(--space-4);
+  font-family: var(--font-pixel);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.title {
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.text {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+@media (max-width: 960px) {
+  .intro {
+    grid-template-columns: 1fr;
+  }
+
+  .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--space-8);
+  }
+}
+
+@media (max-width: 560px) {
+  .section {
+    padding-top: var(--space-20);
+  }
+
+  .steps {
+    grid-template-columns: 1fr;
+    border-top: 0;
+    border-left: 2px solid var(--ink);
+    row-gap: var(--space-6);
+  }
+
+  .step {
+    padding: 0 0 0 var(--space-6);
+  }
+
+  .step::before {
+    top: 4px;
+    left: -8px;
+    width: 14px;
+    height: 2px;
+  }
+}
