@@ -10,6 +10,8 @@ RUN groupadd --gid 10001 cliphunter \
 
 COPY pyproject.toml requirements.lock README.md ./
 COPY src ./src
+COPY alembic.ini ./
+COPY migrations ./migrations
 RUN python -m pip install --no-cache-dir -c requirements.lock .
 
 USER cliphunter
