@@ -1,7 +1,8 @@
 # ClipHunter: repository rules
 
 ClipHunter will find highlights in long videos and generate selected clips.
-The current scope is repository foundation; consult BACKEND_INFRA_TASK.md.
+Completed milestones and current scope are documented in BACKEND_INFRA_TASK.md.
+Write README files and contributor-facing documentation in Russian.
 
 ## Ownership and layout
 

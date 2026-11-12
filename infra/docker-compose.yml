@@ -8,9 +8,12 @@ services:
       APP_ENV: ${APP_ENV:-development}
       APP_HOST: 0.0.0.0
       APP_PORT: ${APP_PORT:-8000}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:${APP_PORT:-8000}"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       minio:
@@ -25,6 +28,16 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  migrate:
+    build:
+      context: ../backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:17.10-bookworm

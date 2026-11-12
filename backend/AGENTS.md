@@ -8,8 +8,8 @@ Follow the root AGENTS.md. Use the `src/cliphunter` package layout.
 - `presentation/http`: HTTP routes, schemas and dependencies.
 - `main.py`: application factory and composition root.
 
-Do not move business behavior into HTTP routes or infrastructure. Do not add
-SQLAlchemy, storage/Groq SDKs, FFmpeg or queue dependencies before their milestone.
+Do not move business behavior into HTTP routes or infrastructure. SQLAlchemy 2.0,
+asyncpg and Alembic are used for PostgreSQL. Add other dependencies only for their milestone.
 Keep settings injectable so tests can run independently of the host environment.
 The health endpoint is process liveness, not database/storage readiness.
 

@@ -12,6 +12,9 @@ dependencies = [
     "fastapi>=0.162.4,<0.163",
     "pydantic-settings>=2.16.2,<3",
     "uvicorn>=0.54.0,<0.55",
+    "sqlalchemy[asyncio]>=2.0.57,<2.1",
+    "asyncpg>=0.32,<1",
+    "alembic>=1.20.1,<2",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +31,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = ["integration: requires TEST_DATABASE_URL and running PostgreSQL"]
 
 [tool.ruff]
 target-version = "py312"
