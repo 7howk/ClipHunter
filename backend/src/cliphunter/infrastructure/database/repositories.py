@@ -3,9 +3,11 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cliphunter.domain.entities import ProjectStatus, VideoProject
+from cliphunter.domain.errors import Conflict
 from cliphunter.infrastructure.database.models import VideoProjectModel
 
 
@@ -34,8 +36,13 @@ class SqlAlchemyProjectRepository:
     async def get(self, project_id: UUID, *, for_update: bool = False) -> VideoProject | None:
         stmt = select(VideoProjectModel).where(VideoProjectModel.id == project_id)
         if for_update:
-            stmt = stmt.with_for_update()
-        model = await self.session.scalar(stmt)
+            stmt = stmt.with_for_update(nowait=True)
+        try:
+            model = await self.session.scalar(stmt)
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) == "55P03":
+                raise Conflict("Проект уже используется другой загрузкой") from None
+            raise
         return None if model is None else to_entity(model)
 
     async def list(self, *, limit: int, offset: int) -> tuple[list[VideoProject], int]:

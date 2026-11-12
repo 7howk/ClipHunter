@@ -67,6 +67,8 @@ jobs:
           curl --fail --silent --output /dev/null http://localhost:8000/openapi.json
           curl --fail --silent http://localhost:9000/minio/health/ready
           docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
+      - name: Check video upload with real PostgreSQL and multipart MinIO
+        run: docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_upload.py
       - name: Show logs on failure
         if: failure()
         run: docker compose --env-file .env -f infra/docker-compose.yml logs --tail=100

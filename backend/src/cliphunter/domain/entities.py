@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from cliphunter.domain.errors import InvalidInput
+from cliphunter.domain.errors import Conflict, InvalidInput
 
 
 class ProjectStatus(StrEnum):
@@ -55,6 +55,18 @@ class VideoProject:
             raise InvalidInput("Длительность видео должна быть положительным конечным числом")
         if self.status != ProjectStatus.CREATED and self.storage_key is None:
             raise InvalidInput("Проект в этом статусе должен содержать видео")
+
+    def attach_video(self, *, filename: str, storage_key: str, size: int, duration: float) -> None:
+        if self.status != ProjectStatus.CREATED:
+            raise Conflict("В проект уже загружено видео")
+        if size <= 0 or not math.isfinite(duration) or duration <= 0:
+            raise InvalidInput("Некорректные метаданные видео")
+        self.original_filename = filename
+        self.storage_key = storage_key
+        self.file_size = size
+        self.duration = duration
+        self.status = ProjectStatus.UPLOADED
+        self.updated_at = datetime.now(UTC)
 
 
 @dataclass(kw_only=True)

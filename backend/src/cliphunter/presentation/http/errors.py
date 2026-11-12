@@ -12,9 +12,13 @@ from starlette.exceptions import HTTPException
 from cliphunter.domain.errors import (
     AppError,
     Conflict,
+    InsufficientStorage,
     InvalidInput,
     NotFound,
     ServiceUnavailable,
+    UnsupportedMedia,
+    UploadTimedOut,
+    UploadTooLarge,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,7 +39,16 @@ def error_response(status: int, code: str, message: str) -> JSONResponse:
 
 def register_error_handlers(app: FastAPI) -> None:
     async def app_error(request: Request, exc: AppError) -> JSONResponse:
-        statuses = {NotFound: 404, Conflict: 409, InvalidInput: 422, ServiceUnavailable: 503}
+        statuses = {
+            NotFound: 404,
+            Conflict: 409,
+            InvalidInput: 422,
+            ServiceUnavailable: 503,
+            UploadTooLarge: 413,
+            UnsupportedMedia: 415,
+            InsufficientStorage: 507,
+            UploadTimedOut: 408,
+        }
         return error_response(statuses.get(type(exc), 500), exc.code, str(exc))
 
     async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
