@@ -84,9 +84,10 @@ function paintBackground(ctx: Ctx, width: number, height: number, options: Scene
   ctx.fillRect(0, 0, width, height);
   if (!options.backdrop) return;
   const sky = ctx.createLinearGradient(width, 0, width * 0.45, height * 0.75);
-  sky.addColorStop(0, 'rgba(40,40,40,0.95)');
-  sky.addColorStop(0.45, 'rgba(110,110,110,0.55)');
-  sky.addColorStop(1, 'rgba(255,255,255,0)');
+  // Плотные строки без шумных полутонов; рваный край только у границы
+  sky.addColorStop(0, 'rgb(100,100,100)');
+  sky.addColorStop(0.4, 'rgb(132,132,132)');
+  sky.addColorStop(0.62, 'rgba(255,255,255,0)');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
 }
@@ -115,12 +116,16 @@ function paintStaticBack(ctx: Ctx) {
 /** Всё неподвижное впереди: корпус, полоса, объектив. */
 function paintStaticFront(ctx: Ctx) {
   const body = ctx.createLinearGradient(-150, -70, 120, 110);
-  body.addColorStop(0, '#c4c4c4');
-  body.addColorStop(0.6, '#a2a2a2');
-  body.addColorStop(1, '#6a6a6a');
+  body.addColorStop(0, '#b4b4b4');
+  body.addColorStop(0.6, '#8e8e8e');
+  body.addColorStop(1, '#5e5e5e');
   ctx.fillStyle = body;
   roundedRect(ctx, -150, -72, 300, 160, 34);
   ctx.fill();
+  // Контур: светлые тона шейдер оставляет пустыми, форму держит он
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = '#1c1c1c';
+  ctx.stroke();
 
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   roundedRect(ctx, -136, 52, 272, 22, 11);

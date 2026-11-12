@@ -34,6 +34,19 @@ float lum(vec2 uv) {
   return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 
+// Гладкий шум: соседние куски и строки получают близкие значения, поэтому
+// разрывы собираются в читаемые группы, а не рассыпаются по строке
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(vec3(i, 17.0));
+  float b = hash(vec3(i + vec2(1.0, 0.0), 17.0));
+  float c = hash(vec3(i + vec2(0.0, 1.0), 17.0));
+  float d = hash(vec3(i + vec2(1.0, 1.0), 17.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 void main() {
   vec2 frag = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
   float row = floor(frag.y / u_row);
@@ -43,15 +56,23 @@ void main() {
   // Один отсчёт на ячейку: по горизонтали ровно в центре текселя источника,
   // по вертикали на границе двух текселей (среднее). Фаза у всех ячеек
   // одинакова, поэтому линии не дрожат и не дают муар
-  vec2 sampleUv = vec2((cell + 0.5) * column, (row + 0.5) * u_row) / u_extent;
-  float dark = 1.0 - lum(sampleUv);
+  vec2 centre = vec2((cell + 0.5) * column, (row + 0.5) * u_row);
+  float dark = 1.0 - lum(centre / u_extent);
 
-  // Тон превращается не в толщину линии, а в долю закрашенных кусков строки:
-  // толщина у всех строк одинаковая, края жёсткие, как у «пикселей» развёртки
-  float coverage = smoothstep(0.02, 0.36, dark);
-  float chunk = floor(frag.x / (column * 6.0));
-  bool lit = coverage > hash(vec3(chunk, row, 17.0));
-  bool solid = dark > 0.78;
+  // Тон по соседним ячейкам: границы форм собираются в группы строк
+  vec2 dx = vec2(column, 0.0);
+  vec2 dy = vec2(0.0, column);
+  float around =
+    (lum((centre + dx) / u_extent) + lum((centre - dx) / u_extent) +
+     lum((centre + dy) / u_extent) + lum((centre - dy) / u_extent)) * 0.25;
+  float smoothDark = mix(dark, 1.0 - around, 0.5);
+
+  // Светлое пусто, тёмное — сплошной блок, строки только в полутонах.
+  // Доля закрашенных кусков растёт с тоном; толщина строк одинаковая
+  float coverage = smoothstep(0.27, 0.62, smoothDark);
+  float grain = smoothstep(0.2, 0.8, valueNoise(vec2(frag.x / (column * 8.0), row / 3.0)));
+  bool lit = coverage > grain;
+  bool solid = dark > 0.7;
 
   float y = floor(mod(frag.y, u_row));
   float thickness = floor(u_row * 0.45 + 0.5);
