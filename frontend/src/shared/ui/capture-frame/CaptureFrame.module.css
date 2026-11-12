@@ -1,0 +1,33 @@
+.frame {
+  position: relative;
+}
+
+.corners {
+  --corner: 12px;
+  --weight: 2px;
+  --offset: -6px;
+
+  position: absolute;
+  inset: var(--offset);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(1.02);
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+  background:
+    linear-gradient(var(--rec), var(--rec)) top left / var(--corner) var(--weight),
+    linear-gradient(var(--rec), var(--rec)) top left / var(--weight) var(--corner),
+    linear-gradient(var(--rec), var(--rec)) top right / var(--corner) var(--weight),
+    linear-gradient(var(--rec), var(--rec)) top right / var(--weight) var(--corner),
+    linear-gradient(var(--rec), var(--rec)) bottom left / var(--corner) var(--weight),
+    linear-gradient(var(--rec), var(--rec)) bottom left / var(--weight) var(--corner),
+    linear-gradient(var(--rec), var(--rec)) bottom right / var(--corner) var(--weight),
+    linear-gradient(var(--rec), var(--rec)) bottom right / var(--weight) var(--corner);
+  background-repeat: no-repeat;
+}
+
+.frame[data-active='true'] > .corners {
+  opacity: 1;
+  transform: scale(1);
+}

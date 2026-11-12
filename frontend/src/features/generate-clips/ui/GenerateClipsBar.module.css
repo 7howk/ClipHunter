@@ -1,0 +1,21 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--r-lg);
+  background: var(--sheet);
+  box-shadow: var(--shadow-float);
+}
+
+.count {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.error {
+  flex-basis: 100%;
+}

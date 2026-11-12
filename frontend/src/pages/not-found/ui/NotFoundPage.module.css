@@ -1,0 +1,12 @@
+.page {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-6);
+  width: min(100% - var(--gutter) * 2, var(--max));
+  margin: 0 auto;
+  padding: var(--space-24) 0 0;
+}
+
+.text {
+  color: var(--ink-2);
+}

@@ -1,0 +1,18 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink);
+}
+
+.mark {
+  width: 32px;
+  height: 22px;
+  flex: none;
+}
+
+.word {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 1;
+}
