@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from pathlib import Path
 from threading import Event
 from typing import TYPE_CHECKING
@@ -29,6 +30,29 @@ class S3ObjectStorage:
         self.transfer_timeout = transfer_timeout
 
     async def upload(self, path: Path, key: str, content_type: str) -> None:
+        await self._transfer(
+            lambda config, callback: self.client.upload_file(
+                str(path),
+                self.bucket,
+                key,
+                ExtraArgs={"ContentType": content_type},
+                Callback=callback,
+                Config=config,
+            ),
+            "Не удалось сохранить видео в хранилище",
+        )
+
+    async def download(self, key: str, path: Path) -> None:
+        await self._transfer(
+            lambda config, callback: self.client.download_file(
+                self.bucket, key, str(path), Callback=callback, Config=config
+            ),
+            "Не удалось получить видео из хранилища",
+        )
+
+    async def _transfer(
+        self, operation: Callable[[TransferConfig, Callable[[int], None]], None], message: str
+    ) -> None:
         cancelled = Event()
 
         def transfer() -> None:
@@ -38,24 +62,20 @@ class S3ObjectStorage:
                 if cancelled.is_set() or time.monotonic() > deadline:
                     raise TimeoutError("S3 transfer deadline exceeded")
 
-            self.client.upload_file(
-                str(path),
-                self.bucket,
-                key,
-                ExtraArgs={"ContentType": content_type},
-                Callback=progress,
-                Config=TransferConfig(
+            operation(
+                TransferConfig(
                     multipart_threshold=8 * 1024 * 1024,
                     multipart_chunksize=8 * 1024 * 1024,
                     max_concurrency=1,
                     use_threads=False,
                 ),
+                progress,
             )
 
         try:
             await run_io(transfer, on_cancel=cancelled.set)
         except (BotoCoreError, ClientError, S3UploadFailedError, TimeoutError):
-            raise ServiceUnavailable("Не удалось сохранить видео в хранилище") from None
+            raise ServiceUnavailable(message) from None
 
     async def delete(self, key: str) -> None:
         try:

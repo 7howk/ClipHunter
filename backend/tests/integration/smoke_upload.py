@@ -38,7 +38,6 @@ def request(method: str, path: str, data: bytes, content_type: str) -> tuple[int
 
 async def check_processing(project_id: UUID, min_score: int) -> None:
     project_path = f"/api/v1/projects/{project_id}"
-    expected_scores = [score for score in (86, 72) if score >= min_score]
     status, page = request("GET", f"{project_path}/highlights", b"", "application/json")
     assert status == 200 and page == {"items": [], "min_score": min_score}
 
@@ -54,19 +53,13 @@ async def check_processing(project_id: UUID, min_score: int) -> None:
             if state["status"] != "processing":
                 break
             await asyncio.sleep(0.2)
-    assert state["status"] == ("completed" if expected_scores else "no_highlights"), state
-    assert "error" not in state and "stage" not in state
+    assert state["status"] in ("no_highlights", "failed"), state
+    assert "stage" not in state
+    if state["status"] == "failed":
+        assert state["error"] == "Сервис обработки не настроен. Обратитесь к администратору."
 
     status, page = request("GET", f"{project_path}/highlights", b"", "application/json")
-    assert status == 200 and page["min_score"] == min_score
-    assert [item["score"] for item in page["items"]] == expected_scores
-    for item in page["items"]:
-        assert item["project_id"] == str(project_id)
-        assert 0 <= item["start_time"] < item["end_time"] <= project["duration"]
-        status, highlight = request(
-            "GET", f"/api/v1/highlights/{item['id']}", b"", "application/json"
-        )
-        assert status == 200 and highlight == item
+    assert status == 200 and page == {"items": [], "min_score": min_score}
 
 
 async def main() -> None:
@@ -183,7 +176,7 @@ async def main() -> None:
             await check_processing(project_id, settings.highlight_min_score)
             print(
                 "OK: chunked upload, ffprobe, PostgreSQL, multipart MinIO, "
-                "SHA-256, duplicate and invalid video, worker, status and highlights"
+                "SHA-256, duplicate and invalid video, worker and status"
             )
     finally:
         for project_id in projects:

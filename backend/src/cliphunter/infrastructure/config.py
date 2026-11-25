@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     ffprobe_timeout_seconds: float = Field(default=20, gt=0, allow_inf_nan=False)
     highlight_min_score: int = Field(default=60, ge=0, le=100)
     processing_timeout_seconds: float = Field(default=1800, gt=0, allow_inf_nan=False)
+    groq_api_key: SecretStr | None = None
+    groq_stt_model: str = Field(default="whisper-large-v3-turbo", min_length=1)
+    groq_llm_model: str = Field(default="openai/gpt-oss-120b", min_length=1)
+    groq_timeout_seconds: float = Field(default=60, gt=0, allow_inf_nan=False)
+
+    @field_validator("groq_stt_model", "groq_llm_model", mode="before")
+    @classmethod
+    def default_empty_model(cls, value: object, info: ValidationInfo) -> object:
+        if isinstance(value, str) and info.field_name is not None:
+            return value.strip() or cls.model_fields[info.field_name].default
+        return value
 
     @field_validator("s3_endpoint_url", mode="before")
     @classmethod
