@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cliphunter.domain.entities import ClipStatus, GeneratedClip
 from cliphunter.domain.repositories import ClipClaim
-from cliphunter.infrastructure.database.models import GeneratedClipModel, VideoProjectModel
-from cliphunter.infrastructure.database.repositories import to_clip
+from cliphunter.infrastructure.database.models import GeneratedClipModel
+from cliphunter.infrastructure.database.repositories import lock_clip_project, to_clip
 
 
 def owned_by(claim: ClipClaim) -> ColumnElement[bool]:
@@ -62,12 +62,7 @@ class SqlAlchemyClipQueue:
 
     async def lock_claimed_clip(self, claim: ClipClaim) -> GeneratedClip | None:
         # Deleting a project locks the project before cascading to its clips.
-        project = await self.session.scalar(
-            select(VideoProjectModel.id)
-            .where(VideoProjectModel.id == claim.clip.project_id)
-            .with_for_update(read=True, key_share=True)
-        )
-        if project is None:
+        if not await lock_clip_project(self.session, claim.clip.project_id):
             return None
         stmt = select(GeneratedClipModel).where(owned_by(claim)).with_for_update()
         model = await self.session.scalar(stmt)

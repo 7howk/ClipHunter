@@ -162,6 +162,10 @@ class SqlAlchemyClipRepository:
         )
         if existing is not None:
             return to_clip(existing)
+        # Deletion locks the project before cascading to the highlight. Take the
+        # parent lock first so the two INSERT foreign keys cannot reverse that order.
+        if not await lock_clip_project(self.session, clip.project_id):
+            raise NotFound("Хайлайт не найден")
         stmt = (
             insert(GeneratedClipModel)
             .values(**vars(clip))
@@ -205,3 +209,12 @@ def to_clip(model: GeneratedClipModel) -> GeneratedClip:
         status=ClipStatus(model.status),
         created_at=model.created_at,
     )
+
+
+async def lock_clip_project(session: AsyncSession, project_id: UUID) -> bool:
+    stmt = (
+        select(VideoProjectModel.id)
+        .where(VideoProjectModel.id == project_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    return await session.scalar(stmt) is not None

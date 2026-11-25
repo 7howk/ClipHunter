@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import delete, func, update
+from sqlalchemy import delete, func, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from cliphunter.application.clip_worker import ClipGenerationWorker
@@ -202,3 +202,27 @@ async def test_expired_claim_is_recovered_and_fenced(database: Database) -> None
         assert await uow.clip_queue.lock_claimed_clip(new_claim) is not None
         existing = await asyncio.wait_for(GenerateClip(new_uow()).execute(highlight.id), timeout=2)
         assert existing.id == first.id and existing.status == ClipStatus.PROCESSING
+
+
+async def test_generate_waits_for_project_deletion_without_deadlocking(database: Database) -> None:
+    _, new_uow, project, highlight = database
+    async with new_uow() as deletion:
+        assert await deletion.projects.get(project.id, for_update=True) is not None
+        generation = asyncio.create_task(GenerateClip(new_uow()).execute(highlight.id))
+        try:
+            async with asyncio.timeout(3):
+                while not await deletion.session.scalar(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted "
+                        "AND pg_backend_pid() = ANY(pg_blocking_pids(pid)))"
+                    )
+                ):
+                    await asyncio.sleep(0.02)
+                await deletion.projects.delete(project.id)
+                await deletion.commit()
+            with pytest.raises(NotFound):
+                await asyncio.wait_for(generation, timeout=3)
+        finally:
+            if not generation.done():
+                generation.cancel()
+                await asyncio.gather(generation, return_exceptions=True)
