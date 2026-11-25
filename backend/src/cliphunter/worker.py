@@ -5,7 +5,7 @@ import logging
 import signal
 from collections.abc import Awaitable, Callable
 
-from httpx2 import AsyncClient
+from httpx2 import AsyncBaseTransport, AsyncClient
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -42,7 +42,7 @@ async def poll(run_once: Callable[[], Awaitable[bool]]) -> None:
         await asyncio.sleep(1)
 
 
-async def run(settings: Settings) -> None:
+async def run(settings: Settings, *, groq_transport: AsyncBaseTransport | None = None) -> None:
     if settings.database_url is None:
         raise SystemExit("Для worker требуется DATABASE_URL")
     engine = create_async_engine(settings.database_url.get_secret_value(), pool_pre_ping=True)
@@ -58,6 +58,7 @@ async def run(settings: Settings) -> None:
             base_url="https://api.groq.com/openai/v1/",
             headers={"Authorization": f"Bearer {key}"} if key else {},
             timeout=settings.groq_timeout_seconds,
+            transport=groq_transport,
         ) as client:
             groq = GroqAnalysis(
                 client, stt_model=settings.groq_stt_model, llm_model=settings.groq_llm_model

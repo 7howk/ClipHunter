@@ -1,21 +1,26 @@
-"""Compose smoke test with real WebM, ffmpeg, MP4, signed S3 GET and cleanup."""
+"""Compose smoke test with real media, signed download and optional mocked Groq."""
 
 import asyncio
 import json
 import subprocess
 import tempfile
+from argparse import ArgumentParser
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
-from httpx2 import AsyncClient
+from httpx2 import AsyncClient, MockTransport, Request, Response
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from cliphunter.domain.entities import Highlight
 from cliphunter.infrastructure.config import Settings
 from cliphunter.infrastructure.database.uow import SqlAlchemyUnitOfWork
 from cliphunter.infrastructure.storage import S3ObjectStorage, create_storage
+from cliphunter.worker import run as run_worker
 
 
 async def seed_highlight(sessions: async_sessionmaker, project_id: UUID) -> UUID:
@@ -38,6 +43,85 @@ async def seed_highlight(sessions: async_sessionmaker, project_id: UUID) -> UUID
         await uow.highlights.add_many([highlight])
         await uow.commit()
     return highlight.id
+
+
+def mock_groq(request: Request) -> Response:
+    if request.url.path == "/openai/v1/audio/transcriptions":
+        assert b"RIFF" in request.content and b"verbose_json" in request.content
+        return Response(
+            200,
+            json={
+                "segments": [
+                    {"start": 0.5, "end": 1.25, "text": "У меня есть новость."},
+                    {"start": 1.3, "end": 2, "text": "Мы всё-таки выиграли!"},
+                ]
+            },
+        )
+
+    assert request.url.path == "/openai/v1/chat/completions"
+    payload = json.loads(request.content)
+    assert payload["response_format"]["json_schema"]["strict"]
+    entries = json.loads(payload["messages"][1]["content"])
+    assert [item["id"] for item in entries] == [0, 1]
+    assert entries[1]["text"] == "Мы всё-таки выиграли!"
+    ranking = {
+        "highlights": [
+            {
+                "start_segment": 0,
+                "end_segment": 1,
+                "score": 100,
+                "category": "surprise",
+                "title": "Неожиданная победа",
+                "description": "Герой сообщает о победе.",
+                "reason": "Новость неожиданна и понятна вне контекста.",
+            }
+        ]
+    }
+    return Response(
+        200,
+        json={
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": json.dumps(ranking)},
+                }
+            ]
+        },
+    )
+
+
+@asynccontextmanager
+async def smoke_worker(settings: Settings, *, use_mock: bool) -> AsyncIterator[None]:
+    if not use_mock:
+        yield
+        return
+    configured = settings.model_copy(update={"groq_api_key": SecretStr("local-smoke")})
+    task = asyncio.create_task(run_worker(configured, groq_transport=MockTransport(mock_groq)))
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+async def analyze_video(client: AsyncClient, project_path: str) -> UUID:
+    queued = await client.post(project_path + "/process")
+    assert queued.status_code == 202 and queued.json()["status"] == "processing"
+    async with asyncio.timeout(15):
+        while True:
+            state = (await client.get(project_path + "/status")).json()
+            if state["status"] != "processing":
+                break
+            await asyncio.sleep(0.2)
+    assert state["status"] == "completed", state
+    response = await client.get(project_path + "/highlights")
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    item = items[0]
+    assert (item["start_time"], item["end_time"], item["score"]) == (0.5, 2, 100)
+    return UUID(item["id"])
 
 
 async def check_download(
@@ -89,8 +173,10 @@ async def verify_cleanup(storage: S3ObjectStorage, project_id: UUID) -> None:
             await asyncio.sleep(0.2)
 
 
-async def main() -> None:
+async def main(*, use_mock: bool) -> None:
     settings = Settings()
+    if use_mock and settings.app_env != "test":
+        raise SystemExit("The mocked worker requires an isolated Compose stack with APP_ENV=test")
     assert settings.s3_endpoint_url == "http://minio:9000", "Use local Compose MinIO"
     assert settings.database_url is not None
     engine = create_async_engine(settings.database_url.get_secret_value())
@@ -98,7 +184,11 @@ async def main() -> None:
     storage = create_storage(settings)
     assert storage is not None
     try:
-        async with AsyncClient(base_url=f"http://127.0.0.1:{settings.app_port}", timeout=30) as api:
+        base_url = "http://web" if use_mock else f"http://127.0.0.1:{settings.app_port}"
+        async with (
+            smoke_worker(settings, use_mock=use_mock),
+            AsyncClient(base_url=base_url, timeout=30) as api,
+        ):
             response = await api.post("/api/v1/projects", json={"title": "Clip smoke"})
             assert response.status_code == 201
             project_id = UUID(response.json()["id"])
@@ -138,7 +228,11 @@ async def main() -> None:
                         content=source.read_bytes(),
                     )
                     assert uploaded.status_code == 200 and uploaded.json()["status"] == "uploaded"
-                    highlight_id = await seed_highlight(sessions, project_id)
+                    highlight_id = (
+                        await analyze_video(api, project_path)
+                        if use_mock
+                        else await seed_highlight(sessions, project_id)
+                    )
                     generate = f"/api/v1/highlights/{highlight_id}/generate"
                     requested = await api.post(generate)
                     assert requested.status_code == 202 and requested.json()["status"] == "pending"
@@ -160,6 +254,8 @@ async def main() -> None:
                     await verify_cleanup(storage, project_id)
             finally:
                 await api.delete(project_path)
+        if use_mock:
+            print("OK: nginx API proxy, real upload and audio, mocked Groq and persisted highlight")
         print("OK: clip worker, WebM to MP4, duplicate generate, signed GET, file cleanup")
     finally:
         storage.close()
@@ -167,4 +263,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = ArgumentParser()
+    parser.add_argument("--with-groq-mock", action="store_true")
+    asyncio.run(main(use_mock=parser.parse_args().with_groq_mock))

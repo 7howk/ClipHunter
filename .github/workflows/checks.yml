@@ -75,10 +75,14 @@ jobs:
 
   compose:
     runs-on: ubuntu-latest
+    env:
+      APP_ENV: test
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env
       - run: docker compose --env-file .env -f infra/docker-compose.yml config --quiet
+      - name: Validate R2 production Compose
+        run: docker compose --env-file infra/production.env.example -f infra/docker-compose.production.yml config --quiet
       - run: docker compose --env-file .env -f infra/docker-compose.yml up --build --wait --wait-timeout 180
       - name: Check running services
         run: |
@@ -94,6 +98,11 @@ jobs:
         run: docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_upload.py
       - name: Check clip rendering, signed download and file cleanup
         run: docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_clips.py
+      - name: Check upload through download with a mocked Groq transport
+        run: |
+          docker compose --env-file .env -f infra/docker-compose.yml stop worker
+          trap 'docker compose --env-file .env -f infra/docker-compose.yml start worker' EXIT
+          docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - --with-groq-mock < backend/tests/integration/smoke_clips.py
       - name: Show logs on failure
         if: failure()
         run: docker compose --env-file .env -f infra/docker-compose.yml logs --tail=100
