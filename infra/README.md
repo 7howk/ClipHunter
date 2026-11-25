@@ -108,7 +108,60 @@ Compose читает корневой `.env`, явно указанный в к�
 `http://localhost:<MINIO_PORT>`. Для R2 укажите S3 API endpoint аккаунта.
 [Подписанные ссылки Cloudflare R2](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
 
-Данный Compose предназначен для локальной разработки.
+Локальный Compose использует MinIO. Для запуска с R2 подготовлена отдельная
+конфигурация.
+
+## Сквозная проверка MVP
+
+Выполните команды из корня репозитория. Они поднимают отдельный Compose со
+своими томами для PostgreSQL и MinIO. Worker с моком получает задачи из этой
+тестовой базы. Тест отправляет запросы через nginx, загружает WebM и обрабатывает его
+с реальными ffmpeg, PostgreSQL и MinIO. Транспорт Groq подменяется внутри
+тестового процесса. Он возвращает реплики с таймкодами и ответ по схеме
+ранжирования. Тест получает хайлайт, генерирует MP4, скачивает его по
+подписанной ссылке и проверяет очистку файлов проекта.
+
+```sh
+(
+  set -e
+  unset DATABASE_URL S3_ENDPOINT_URL S3_PUBLIC_ENDPOINT_URL
+  export APP_ENV=test GROQ_API_KEY=
+  export APP_PORT=18081 WEB_PORT=18082 POSTGRES_PORT=55433 MINIO_PORT=19000 MINIO_CONSOLE_PORT=19001
+  compose() {
+    docker compose -p cliphunter-smoke --env-file .env.example -f infra/docker-compose.yml "$@"
+  }
+  trap 'compose down' EXIT
+  compose up --build --wait
+  compose stop worker
+  compose exec -T api python - --with-groq-mock < backend/tests/integration/smoke_clips.py
+)
+```
+
+## Запуск в production
+
+`infra/docker-compose.production.yml` запускает миграции, API, worker
+и nginx с клиентом в режиме `real`. PostgreSQL и закрытый бакет Cloudflare R2
+предоставляются окружением. API и worker стартуют после применения миграций.
+Nginx доступен на `127.0.0.1:8080`. Внешний адрес и TLS настраиваются
+на сервере, который принимает входящий трафик. Учитывайте при настройке
+доступа, что текущие маршруты API работают без авторизации.
+
+1. На сервере создайте `.env` по образцу `infra/production.env.example`.
+   Укажите доступ к PostgreSQL, закрытому бакету R2 и Groq. Для подписи
+   используйте S3 API endpoint этого же аккаунта R2.
+2. Соберите и запустите стек из корня репозитория.
+
+   ```sh
+   docker compose --env-file .env -f infra/docker-compose.production.yml config --quiet
+   docker compose --env-file .env -f infra/docker-compose.production.yml up --build --wait
+   docker compose --env-file .env -f infra/docker-compose.production.yml ps -a
+   curl --fail http://127.0.0.1:8080/api/v1/health
+   ```
+
+3. Проверьте на адресе развёртывания загрузку видео с речью, появление
+   хайлайтов, нарезку, скачивание и удаление тестового проекта. Этот сценарий
+   проверяет доступ к реальным Groq и R2. В CI конфигурация production
+   проверяется с образцом окружения, а сквозной тест использует MinIO и мок Groq.
 
 ## Постоянные тома
 
