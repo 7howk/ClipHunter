@@ -24,18 +24,31 @@ if TYPE_CHECKING:
 
 
 class S3ObjectStorage:
-    def __init__(self, client: S3Client, bucket: str, *, transfer_timeout: float = 300) -> None:
+    def __init__(
+        self,
+        client: S3Client,
+        bucket: str,
+        *,
+        public_client: S3Client | None = None,
+        transfer_timeout: float = 300,
+    ) -> None:
         self.client = client
+        self.public_client = public_client if public_client is not None else client
         self.bucket = bucket
         self.transfer_timeout = transfer_timeout
 
-    async def upload(self, path: Path, key: str, content_type: str) -> None:
+    async def upload(
+        self, path: Path, key: str, content_type: str, *, filename: str | None = None
+    ) -> None:
+        fields = {"ContentType": content_type}
+        if filename is not None:
+            fields["ContentDisposition"] = f'attachment; filename="{filename}"'
         await self._transfer(
             lambda config, callback: self.client.upload_file(
                 str(path),
                 self.bucket,
                 key,
-                ExtraArgs={"ContentType": content_type},
+                ExtraArgs=fields,
                 Callback=callback,
                 Config=config,
             ),
@@ -83,6 +96,20 @@ class S3ObjectStorage:
         except (BotoCoreError, ClientError):
             raise ServiceUnavailable("Хранилище временно недоступно") from None
 
+    def sign_download(self, key: str, filename: str, *, expires_in: int) -> str:
+        try:
+            return self.public_client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self.bucket,
+                    "Key": key,
+                    "ResponseContentDisposition": f'attachment; filename="{filename}"',
+                },
+                ExpiresIn=expires_in,
+            )
+        except (BotoCoreError, ClientError):
+            raise ServiceUnavailable("Не удалось подготовить ссылку для скачивания") from None
+
     async def ensure_bucket(self) -> None:
         """Explicit local bootstrap; never called by API startup or for production R2."""
 
@@ -101,15 +128,33 @@ class S3ObjectStorage:
 
     def close(self) -> None:
         self.client.close()
+        if self.public_client is not self.client:
+            self.public_client.close()
 
 
 def create_storage(settings: Settings) -> S3ObjectStorage | None:
     if not settings.s3_endpoint_url:
         return None
+    client = create_s3_client(settings, settings.s3_endpoint_url)
+    public_client = (
+        create_s3_client(settings, settings.s3_public_endpoint_url)
+        if settings.s3_public_endpoint_url
+        and settings.s3_public_endpoint_url != settings.s3_endpoint_url
+        else client
+    )
+    return S3ObjectStorage(
+        client,
+        settings.s3_bucket,
+        public_client=public_client,
+        transfer_timeout=settings.s3_transfer_timeout_seconds,
+    )
+
+
+def create_s3_client(settings: Settings, endpoint: str) -> S3Client:
     assert settings.s3_access_key is not None and settings.s3_secret_key is not None
-    client = boto3.client(
+    return boto3.client(
         "s3",
-        endpoint_url=settings.s3_endpoint_url,
+        endpoint_url=endpoint,
         aws_access_key_id=settings.s3_access_key.get_secret_value(),
         aws_secret_access_key=settings.s3_secret_key.get_secret_value(),
         region_name=settings.s3_region,
@@ -122,9 +167,6 @@ def create_storage(settings: Settings) -> S3ObjectStorage | None:
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
         ),
-    )
-    return S3ObjectStorage(
-        client, settings.s3_bucket, transfer_timeout=settings.s3_transfer_timeout_seconds
     )
 
 

@@ -153,3 +153,18 @@ class GeneratedClip:
     def __post_init__(self) -> None:
         if self.status == ClipStatus.COMPLETED and not self.storage_key:
             raise InvalidInput("Готовый клип должен содержать ключ хранилища")
+
+    @property
+    def filename(self) -> str:
+        return f"clip-{self.id}.mp4"
+
+    @property
+    def output_key(self) -> str:
+        return f"projects/{self.project_id}/clips/{self.filename}"
+
+    def complete(self) -> None:
+        self.status = ClipStatus.COMPLETED
+        self.storage_key = self.output_key
+
+    def fail(self) -> None:
+        self.status = ClipStatus.FAILED

@@ -3,30 +3,25 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Coroutine
-from contextlib import suppress
 from dataclasses import dataclass, field
-from datetime import timedelta
+from functools import partial
 from typing import Any
 from uuid import UUID
 
 from cliphunter.application.dto import ProjectOutput
 from cliphunter.application.interfaces import UnitOfWork
+from cliphunter.application.leases import LEASE, MAX_ATTEMPTS, LeaseLost, run_with_lease
+from cliphunter.application.storage_cleanup import clip_storage_keys
 from cliphunter.domain.entities import Highlight, ProcessingStage, TranscriptSegment, VideoProject
 from cliphunter.domain.errors import NotFound
 from cliphunter.domain.repositories import ProcessingClaim
 
 logger = logging.getLogger(__name__)
-LEASE = timedelta(seconds=30)
-MAX_ATTEMPTS = 3
 StageReporter = Callable[[ProcessingStage], Awaitable[None]]
 
 
 class AnalysisFailed(Exception):
     """A user-facing processing failure with a safe Russian message."""
-
-
-class LeaseLost(Exception):
-    """Processing ownership changed while the worker was running."""
 
 
 class StartProjectProcessing:
@@ -39,6 +34,8 @@ class StartProjectProcessing:
             if project is None:
                 raise NotFound("Проект не найден")
             project.start_processing()
+            clips = await self.uow.clips.list_for_project(project.id)
+            await self.uow.storage_cleanup.enqueue(clip_storage_keys(clips))
             await self.uow.highlights.delete_for_project(project.id)
             await self.uow.transcripts.delete_for_project(project.id)
             await self.uow.processing_queue.reset(project.id)
@@ -87,7 +84,9 @@ class ProjectProcessingWorker:
     async def _process(self, claim: ProcessingClaim) -> None:
         try:
             async with asyncio.timeout(self.timeout):
-                result = await self._analyze_with_lease(claim)
+                result = await run_with_lease(
+                    self._run_analysis(claim), partial(self._renew, claim)
+                )
         except TimeoutError:
             await self._finish(
                 claim, error="Обработка заняла слишком много времени. Попробуйте снова."
@@ -97,25 +96,13 @@ class ProjectProcessingWorker:
         except LeaseLost:
             return
         else:
-            if result is not None:
-                await self._finish(claim, result=result)
+            await self._finish(claim, result=result)
 
-    async def _analyze_with_lease(self, claim: ProcessingClaim) -> ProcessingResult | None:
-        task = asyncio.create_task(self._run_analysis(claim))
-        try:
-            while True:
-                done, _ = await asyncio.wait({task}, timeout=LEASE.total_seconds() / 3)
-                if done:
-                    return task.result()
-                async with self.uow_factory() as uow:
-                    if not await uow.processing_queue.renew(claim, LEASE):
-                        return None
-                    await uow.commit()
-        finally:
-            if not task.done():
-                task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await task
+    async def _renew(self, claim: ProcessingClaim) -> bool:
+        async with self.uow_factory() as uow:
+            renewed = await uow.processing_queue.renew(claim, LEASE)
+            await uow.commit()
+        return renewed
 
     async def _run_analysis(self, claim: ProcessingClaim) -> ProcessingResult:
         async def report_stage(stage: ProcessingStage) -> None:

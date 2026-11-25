@@ -11,8 +11,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from cliphunter.application.highlights import GetHighlight, ListProjectHighlights
+from cliphunter.application.leases import MAX_ATTEMPTS
 from cliphunter.application.processing import (
-    MAX_ATTEMPTS,
     ProcessingResult,
     ProjectProcessingWorker,
     StageReporter,
@@ -27,7 +27,11 @@ from cliphunter.domain.entities import (
     VideoProject,
 )
 from cliphunter.domain.errors import Conflict, NotFound
-from cliphunter.infrastructure.database.models import TranscriptSegmentModel, VideoProjectModel
+from cliphunter.infrastructure.database.models import (
+    StorageDeletionModel,
+    TranscriptSegmentModel,
+    VideoProjectModel,
+)
 from cliphunter.infrastructure.database.uow import SqlAlchemyUnitOfWork
 
 pytestmark = [pytest.mark.anyio, pytest.mark.integration]
@@ -59,6 +63,11 @@ async def database() -> AsyncIterator[
         async with engine.begin() as connection:
             await connection.execute(
                 delete(VideoProjectModel).where(VideoProjectModel.id == project.id)
+            )
+            await connection.execute(
+                delete(StorageDeletionModel).where(
+                    StorageDeletionModel.storage_key.startswith(f"projects/{project.id}/")
+                )
             )
         await engine.dispose()
 

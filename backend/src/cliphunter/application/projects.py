@@ -10,6 +10,7 @@ from cliphunter.application.dto import (
     ProjectStatusOutput,
 )
 from cliphunter.application.interfaces import UnitOfWork
+from cliphunter.application.storage_cleanup import clip_storage_keys
 from cliphunter.domain.entities import VideoProject
 from cliphunter.domain.errors import InvalidInput, NotFound
 
@@ -51,6 +52,23 @@ class GetVideoProjectStatus:
             if project is None:
                 raise NotFound("Проект не найден")
         return ProjectStatusOutput.model_validate(project)
+
+
+class DeleteVideoProject:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self.uow = uow
+
+    async def execute(self, project_id: UUID) -> None:
+        async with self.uow:
+            project = await self.uow.projects.get(project_id, for_update=True)
+            if project is None:
+                raise NotFound("Проект не найден")
+            keys = clip_storage_keys(await self.uow.clips.list_for_project(project_id))
+            if project.storage_key is not None:
+                keys.append(project.storage_key)
+            await self.uow.storage_cleanup.enqueue(keys)
+            await self.uow.projects.delete(project_id)
+            await self.uow.commit()
 
 
 class ListVideoProjects:

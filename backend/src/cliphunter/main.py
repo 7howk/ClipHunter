@@ -16,6 +16,7 @@ from cliphunter.infrastructure.config import Settings
 from cliphunter.infrastructure.database.uow import SqlAlchemyUnitOfWork
 from cliphunter.infrastructure.storage import create_storage
 from cliphunter.infrastructure.uploads import FFprobeVideoInspector, TemporaryUploadBuffer
+from cliphunter.presentation.http.clips import router as clips_router
 from cliphunter.presentation.http.errors import ErrorResponse, register_error_handlers
 from cliphunter.presentation.http.health import router
 from cliphunter.presentation.http.highlights import router as highlights_router
@@ -65,7 +66,7 @@ def create_app(
     app = FastAPI(
         title="ClipHunter API",
         version="0.1.0",
-        description="Загрузка видео, постановка проектов в очередь и получение хайлайтов.",
+        description="Загрузка видео, поиск хайлайтов и скачивание готовых клипов.",
         lifespan=lifespan,
         responses={
             status: {"model": ErrorResponse} for status in (404, 408, 409, 413, 415, 422, 503, 507)
@@ -75,5 +76,6 @@ def create_app(
     app.include_router(router, prefix="/api/v1")
     app.include_router(projects_router, prefix="/api/v1")
     app.include_router(highlights_router, prefix="/api/v1")
+    app.include_router(clips_router, prefix="/api/v1")
     register_error_handlers(app)
     return app

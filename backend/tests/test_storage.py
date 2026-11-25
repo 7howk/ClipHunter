@@ -3,12 +3,14 @@ import time
 from pathlib import Path
 from threading import Event
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from botocore.exceptions import ClientError
 
 from cliphunter.domain.errors import ServiceUnavailable
-from cliphunter.infrastructure.storage import S3ObjectStorage
+from cliphunter.infrastructure.config import Settings
+from cliphunter.infrastructure.storage import S3ObjectStorage, create_storage
 
 
 @pytest.mark.anyio
@@ -24,6 +26,27 @@ async def test_s3_adapter_uses_bounded_transfer(tmp_path: Path) -> None:
     config = args.kwargs["Config"]
     assert config.multipart_chunksize == 8 * 1024 * 1024
     assert config.max_concurrency == 1 and not config.use_threads
+
+
+def test_download_signature_uses_public_host_and_attachment() -> None:
+    settings = Settings(
+        _env_file=None,
+        s3_endpoint_url="http://minio:9000",
+        s3_public_endpoint_url="http://localhost:19000",
+        s3_access_key="test-access-key",
+        s3_secret_key="test-secret-key",
+    )
+    adapter = create_storage(settings)
+    assert adapter is not None
+    try:
+        signed = urlsplit(adapter.sign_download("projects/clip.mp4", "clip.mp4", expires_in=7200))
+        assert signed.netloc == "localhost:19000"
+        assert signed.path == "/cliphunter/projects/clip.mp4"
+        query = parse_qs(signed.query)
+        assert query["X-Amz-Expires"] == ["7200"]
+        assert query["response-content-disposition"] == ['attachment; filename="clip.mp4"']
+    finally:
+        adapter.close()
 
 
 @pytest.mark.anyio

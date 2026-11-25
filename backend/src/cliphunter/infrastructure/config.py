@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1, le=65535)
     database_url: SecretStr | None = None
     s3_endpoint_url: str | None = None
+    s3_public_endpoint_url: str | None = None
     s3_access_key: SecretStr | None = None
     s3_secret_key: SecretStr | None = None
     s3_bucket: str = Field(
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     ffprobe_timeout_seconds: float = Field(default=20, gt=0, allow_inf_nan=False)
     highlight_min_score: int = Field(default=60, ge=0, le=100)
     processing_timeout_seconds: float = Field(default=1800, gt=0, allow_inf_nan=False)
+    clip_timeout_seconds: float = Field(default=300, gt=0, allow_inf_nan=False)
     groq_api_key: SecretStr | None = None
     groq_stt_model: str = Field(default="whisper-large-v3-turbo", min_length=1)
     groq_llm_model: str = Field(default="openai/gpt-oss-120b", min_length=1)
@@ -52,7 +54,7 @@ class Settings(BaseSettings):
             return value.strip() or cls.model_fields[info.field_name].default
         return value
 
-    @field_validator("s3_endpoint_url", mode="before")
+    @field_validator("s3_endpoint_url", "s3_public_endpoint_url", mode="before")
     @classmethod
     def validate_s3_endpoint(cls, value: str | None) -> str | None:
         if not value:
@@ -67,9 +69,7 @@ class Settings(BaseSettings):
             or parts.fragment
             or parts.path not in ("", "/")
         ):
-            raise ValueError(
-                "S3_ENDPOINT_URL должен быть HTTP(S)-адресом без секретов и параметров"
-            )
+            raise ValueError("Адрес S3 должен быть HTTP(S)-адресом без секретов и параметров")
         return value.rstrip("/")
 
     @model_validator(mode="after")

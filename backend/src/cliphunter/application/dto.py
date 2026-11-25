@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cliphunter.domain.entities import ProcessingStage, ProjectStatus
+from cliphunter.domain.entities import ClipStatus, ProcessingStage, ProjectStatus
 
 
 class CreateProjectInput(BaseModel):
@@ -67,3 +67,18 @@ class HighlightOutput(BaseModel):
 class HighlightList(BaseModel):
     items: list[HighlightOutput]
     min_score: int
+
+
+class ClipOutput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    highlight_id: UUID
+    status: ClipStatus
+    created_at: datetime
+
+
+class ClipDownload(BaseModel):
+    url: str
+    expires_at: datetime

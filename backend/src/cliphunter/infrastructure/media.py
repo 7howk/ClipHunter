@@ -114,3 +114,68 @@ class FFmpegAudio:
                 if end <= start:
                     raise AnalysisFailed("Не удалось разбить аудио на части.")
                 yield AudioChunk(path, start / SAMPLE_RATE, (end - start) / SAMPLE_RATE)
+
+
+class FFmpegClipRenderer:
+    def __init__(self, *, timeout: float) -> None:
+        self.timeout = timeout
+
+    async def render(self, source: Path, output: Path, start: float, end: float) -> None:
+        await run_media(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-protocol_whitelist",
+                "file,pipe",
+                "-ss",
+                f"{start:.9f}",
+                "-i",
+                str(source),
+                "-t",
+                f"{end - start:.9f}",
+                "-map",
+                "0:V:0",
+                "-map",
+                "0:a:0?",
+                "-vf",
+                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                "-c:v",
+                "libx264",
+                "-threads",
+                "2",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-movflags",
+                "+faststart",
+                "-f",
+                "mp4",
+                str(output),
+            ],
+            timeout=self.timeout,
+            failure_message="Не удалось сформировать клип из исходного видео.",
+        )
+        stream = await run_media(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "V:0",
+                "-show_entries",
+                "stream=index",
+                "-of",
+                "csv=p=0",
+                str(output),
+            ],
+            timeout=self.timeout,
+            failure_message="Не удалось проверить готовый клип.",
+            capture=True,
+        )
+        if not stream.strip():
+            raise AnalysisFailed("Клип не содержит видеокадров.")
