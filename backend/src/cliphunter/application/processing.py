@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -18,10 +18,15 @@ from cliphunter.domain.repositories import ProcessingClaim
 logger = logging.getLogger(__name__)
 LEASE = timedelta(seconds=30)
 MAX_ATTEMPTS = 3
+StageReporter = Callable[[ProcessingStage], Awaitable[None]]
 
 
 class AnalysisFailed(Exception):
     """A user-facing processing failure with a safe Russian message."""
+
+
+class LeaseLost(Exception):
+    """Processing ownership changed while the worker was running."""
 
 
 class StartProjectProcessing:
@@ -52,7 +57,7 @@ class ProjectProcessingWorker:
     def __init__(
         self,
         uow_factory: Callable[[], UnitOfWork],
-        analyze: Callable[[VideoProject], Coroutine[Any, Any, ProcessingResult]],
+        analyze: Callable[[VideoProject, StageReporter], Coroutine[Any, Any, ProcessingResult]],
         *,
         min_score: int,
         timeout: float,
@@ -72,7 +77,7 @@ class ProjectProcessingWorker:
                 project.fail_processing("Обработка прерывалась несколько раз. Запустите её снова.")
                 await uow.processing_queue.reset(project.id)
             else:
-                project.set_processing_stage(ProcessingStage.ANALYZING)
+                project.set_processing_stage(ProcessingStage.EXTRACTING_AUDIO)
             await uow.projects.save(project)
             await uow.commit()
         if claim.attempt <= MAX_ATTEMPTS:
@@ -89,12 +94,14 @@ class ProjectProcessingWorker:
             )
         except AnalysisFailed as exc:
             await self._finish(claim, error=str(exc))
+        except LeaseLost:
+            return
         else:
             if result is not None:
                 await self._finish(claim, result=result)
 
     async def _analyze_with_lease(self, claim: ProcessingClaim) -> ProcessingResult | None:
-        task = asyncio.create_task(self._run_analysis(claim.project))
+        task = asyncio.create_task(self._run_analysis(claim))
         try:
             while True:
                 done, _ = await asyncio.wait({task}, timeout=LEASE.total_seconds() / 3)
@@ -110,13 +117,24 @@ class ProjectProcessingWorker:
                 with suppress(asyncio.CancelledError):
                     await task
 
-    async def _run_analysis(self, project: VideoProject) -> ProcessingResult:
+    async def _run_analysis(self, claim: ProcessingClaim) -> ProcessingResult:
+        async def report_stage(stage: ProcessingStage) -> None:
+            async with self.uow_factory() as uow:
+                project = await uow.processing_queue.lock_claimed_project(claim)
+                if project is None:
+                    raise LeaseLost
+                project.set_processing_stage(stage)
+                await uow.projects.save(project)
+                await uow.commit()
+
         try:
-            return await self.analyze(project)
-        except (AnalysisFailed, TimeoutError):
+            return await self.analyze(claim.project, report_stage)
+        except (AnalysisFailed, LeaseLost, TimeoutError):
             raise
         except Exception as exc:
-            logger.warning("Project processing failed for %s: %s", project.id, type(exc).__name__)
+            logger.warning(
+                "Project processing failed for %s: %s", claim.project.id, type(exc).__name__
+            )
             raise AnalysisFailed("Не удалось обработать видео. Попробуйте снова.") from None
 
     async def _finish(

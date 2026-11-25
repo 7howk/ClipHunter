@@ -55,11 +55,23 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       HIGHLIGHT_MIN_SCORE: ${HIGHLIGHT_MIN_SCORE:-60}
       PROCESSING_TIMEOUT_SECONDS: ${PROCESSING_TIMEOUT_SECONDS:-1800}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?Set S3_ENDPOINT_URL in .env}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY in .env}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY in .env}
+      S3_BUCKET: ${S3_BUCKET:-cliphunter}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_TRANSFER_TIMEOUT_SECONDS: ${S3_TRANSFER_TIMEOUT_SECONDS:-300}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_STT_MODEL: ${GROQ_STT_MODEL:-whisper-large-v3-turbo}
+      GROQ_LLM_MODEL: ${GROQ_LLM_MODEL:-openai/gpt-oss-120b}
+      GROQ_TIMEOUT_SECONDS: ${GROQ_TIMEOUT_SECONDS:-60}
     depends_on:
       migrate:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   web:
     build:

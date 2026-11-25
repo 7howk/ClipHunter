@@ -15,14 +15,20 @@ from cliphunter.application.processing import (
     MAX_ATTEMPTS,
     ProcessingResult,
     ProjectProcessingWorker,
+    StageReporter,
     StartProjectProcessing,
 )
 from cliphunter.application.projects import GetVideoProjectStatus
-from cliphunter.domain.entities import GeneratedClip, TranscriptSegment, VideoProject
+from cliphunter.domain.entities import (
+    GeneratedClip,
+    Highlight,
+    ProcessingStage,
+    TranscriptSegment,
+    VideoProject,
+)
 from cliphunter.domain.errors import Conflict, NotFound
 from cliphunter.infrastructure.database.models import TranscriptSegmentModel, VideoProjectModel
 from cliphunter.infrastructure.database.uow import SqlAlchemyUnitOfWork
-from cliphunter.infrastructure.demo_analysis import analyze_demo
 
 pytestmark = [pytest.mark.anyio, pytest.mark.integration]
 
@@ -60,13 +66,28 @@ async def database() -> AsyncIterator[
 Database = tuple[AsyncEngine, Callable[[], SqlAlchemyUnitOfWork], VideoProject]
 
 
+def sample_highlights(project: VideoProject) -> list[Highlight]:
+    return [
+        Highlight(
+            project_id=project.id,
+            start_time=1,
+            end_time=2,
+            score=score,
+            category="funny",
+            title="Тестовый хайлайт",
+            description="Описание",
+            reason="Причина",
+        )
+        for score in (72, 86)
+    ]
+
+
 @pytest.mark.parametrize(("min_score", "expected_scores"), [(60, [86, 72]), (86, [86]), (100, [])])
 async def test_retry_clears_results_and_publishes_filtered_highlights(
     database: Database, min_score: int, expected_scores: list[int]
 ) -> None:
     engine, new_uow, project = database
-    old_result = await analyze_demo(project)
-    stale_highlight = old_result.highlights[0]
+    stale_highlight = sample_highlights(project)[0]
     stale_clip = GeneratedClip(project_id=project.id, highlight_id=stale_highlight.id)
     stale_segment = TranscriptSegment(project_id=project.id, start_time=0, end_time=1, text="Old")
     project.start_processing()
@@ -98,10 +119,16 @@ async def test_retry_clears_results_and_publishes_filtered_highlights(
         )
     assert (await ListProjectHighlights(new_uow(), min_score).execute(project.id)).items == []
 
-    async def analyze(claimed: VideoProject) -> ProcessingResult:
+    async def analyze(claimed: VideoProject, report_stage: StageReporter) -> ProcessingResult:
+        status = await GetVideoProjectStatus(new_uow()).execute(claimed.id)
+        assert status.status == "processing" and status.stage == "extracting_audio"
+        await report_stage(ProcessingStage.TRANSCRIBING)
+        status = await GetVideoProjectStatus(new_uow()).execute(claimed.id)
+        assert status.stage == "transcribing"
+        await report_stage(ProcessingStage.ANALYZING)
         status = await GetVideoProjectStatus(new_uow()).execute(claimed.id)
         assert status.status == "processing" and status.stage == "analyzing"
-        return await analyze_demo(claimed)
+        return ProcessingResult(highlights=sample_highlights(claimed))
 
     worker = ProjectProcessingWorker(new_uow, analyze, min_score=min_score, timeout=10)
     assert await worker.run_once()
@@ -153,7 +180,7 @@ async def test_worker_claim_is_exclusive_and_recovers_after_expiry(database: Dat
 
     await expire_project_lease(engine, project.id, processing_attempts=MAX_ATTEMPTS)
 
-    async def unexpected_analysis(_: VideoProject) -> ProcessingResult:
+    async def unexpected_analysis(_: VideoProject, __: StageReporter) -> ProcessingResult:
         pytest.fail("A project with no attempts left must not be analyzed")
 
     worker = ProjectProcessingWorker(new_uow, unexpected_analysis, min_score=60, timeout=10)
@@ -170,7 +197,7 @@ async def test_worker_saves_safe_errors(database: Database, timed_out: bool) -> 
     _, new_uow, project = database
     await StartProjectProcessing(new_uow()).execute(project.id)
 
-    async def broken_analysis(_: VideoProject) -> ProcessingResult:
+    async def broken_analysis(_: VideoProject, __: StageReporter) -> ProcessingResult:
         if timed_out:
             await asyncio.sleep(60)
         raise RuntimeError("Leaked internal error /var/private/debug.txt")
