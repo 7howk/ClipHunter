@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -55,7 +56,17 @@ class VideoProjectModel(Base):
             name="media_metadata",
         ),
         CheckConstraint("status = 'created' OR storage_key IS NOT NULL", name="status_media"),
+        CheckConstraint(
+            "stage IS NULL OR stage IN ('extracting_audio','transcribing','analyzing')",
+            name="processing_stage",
+        ),
         Index("ix_video_projects_created_at_id", "created_at", "id"),
+        Index(
+            "ix_video_projects_processing_queue",
+            "updated_at",
+            "id",
+            postgresql_where=text("status = 'processing'"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
@@ -64,6 +75,11 @@ class VideoProjectModel(Base):
     file_size: Mapped[int | None] = mapped_column(BigInteger)
     duration: Mapped[float | None] = mapped_column(Float)
     status: Mapped[str] = mapped_column(String(32), index=True)
+    stage: Mapped[str | None] = mapped_column(String(32))
+    error: Mapped[str | None] = mapped_column(Text)
+    processing_lease_token: Mapped[UUID | None] = mapped_column(Uuid)
+    processing_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

@@ -7,12 +7,30 @@ from pathlib import Path
 from types import TracebackType
 from typing import Protocol, Self
 
-from cliphunter.domain.repositories import ProjectRepository
+from cliphunter.domain.repositories import (
+    ClipRepository,
+    HighlightRepository,
+    ProcessingQueue,
+    ProjectRepository,
+    TranscriptRepository,
+)
 
 
 class UnitOfWork(Protocol):
     @property
     def projects(self) -> ProjectRepository: ...
+
+    @property
+    def transcripts(self) -> TranscriptRepository: ...
+
+    @property
+    def highlights(self) -> HighlightRepository: ...
+
+    @property
+    def clips(self) -> ClipRepository: ...
+
+    @property
+    def processing_queue(self) -> ProcessingQueue: ...
 
     async def __aenter__(self) -> Self: ...
 

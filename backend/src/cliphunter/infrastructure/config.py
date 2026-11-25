@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     max_concurrent_uploads: int = Field(default=2, ge=1, le=32)
     upload_timeout_seconds: float = Field(default=900, gt=0, allow_inf_nan=False)
     ffprobe_timeout_seconds: float = Field(default=20, gt=0, allow_inf_nan=False)
+    highlight_min_score: int = Field(default=60, ge=0, le=100)
+    processing_timeout_seconds: float = Field(default=1800, gt=0, allow_inf_nan=False)
 
     @field_validator("s3_endpoint_url", mode="before")
     @classmethod

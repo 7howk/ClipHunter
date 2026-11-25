@@ -75,11 +75,17 @@ def test_project_http_lifecycle_and_pagination() -> None:
         assert "storage_key" not in project
         assert client.get(location).json() == project
         assert client.get(location + "/status").json()["status"] == "created"
+        assert client.post(location + "/process").status_code == 409
+        assert client.get(location + "/highlights").json() == {"items": [], "min_score": 60}
         client.post("/api/v1/projects", json={"title": "Другой"})
         page = client.get("/api/v1/projects?limit=1&offset=1").json()
         assert page["total"] == 2 and len(page["items"]) == 1
         assert page["items"][0]["id"] == project["id"]
-        assert client.get(f"/api/v1/projects/{uuid4()}").status_code == 404
+        missing = f"/api/v1/projects/{uuid4()}"
+        assert client.get(missing).status_code == 404
+        assert client.get(missing + "/status").status_code == 404
+        assert client.post(missing + "/process").status_code == 404
+        assert client.get(missing + "/highlights").status_code == 404
         assert client.post("/api/v1/projects", json={"title": "  "}).status_code == 422
         assert client.get("/api/v1/projects?limit=0").status_code == 422
         assert (

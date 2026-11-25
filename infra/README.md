@@ -10,8 +10,9 @@
 | --- | --- | --- |
 | `web` | Сборка frontend, которую раздаёт nginx; `/api` проксируется в `api` | `GET /` |
 | `api` | Контейнер Python/FastAPI, работающий без прав root | `/api/v1/health` |
+| `worker` | Отдельный процесс обработки задач из PostgreSQL | Сквозной тест `smoke_upload.py` |
 | `postgres` | PostgreSQL 17 с данными в постоянном томе | `pg_isready` |
-| `migrate` | Применение миграций до запуска API | Успешный выход с кодом 0 |
+| `migrate` | Применение миграций до запуска API и worker | Успешный выход с кодом 0 |
 | `minio-init` | Создание локального закрытого бакета | Успешный выход с кодом 0 |
 | `minio` | Локальное S3-совместимое объектное хранилище | `/minio/health/ready` |
 
@@ -23,8 +24,9 @@ http://localhost:8080: nginx отдаёт страницы и передаёт �
 
 API запускается после успешной проверки PostgreSQL и MinIO. Одноразовый сервис `migrate` применяет миграции Alembic; затем
 API работает с PostgreSQL. Сервис `minio-init` создаёт локальный бакет, после чего API принимает загрузки в MinIO. FFmpeg установлен ради `ffprobe`, проверяющего загруженные видео.
-Извлечение аудио, Redis, фоновые обработчики и конфигурация production появятся позже. Образ API содержит
-только зависимости, необходимые для работы текущего приложения.
+Worker использует тот же backend-образ и запускается после миграций. Очередь
+хранится в PostgreSQL. В текущей сборке worker сохраняет демонстрационные
+хайлайты, а извлечение аудио и Groq будут подключены на следующем этапе.
 
 MinIO собирается из официального исходного кода закреплённого выпуска
 [`RELEASE.2025-10-15T17-29-55Z`](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z).
@@ -45,6 +47,7 @@ curl --fail http://localhost:8080/api/v1/health
 curl --fail http://localhost:8000/openapi.json
 curl --fail http://localhost:9000/minio/health/ready
 docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
+docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_upload.py
 ```
 
 Если `.env` уже настроен, не перезаписывайте его примером. При изменении
@@ -71,7 +74,9 @@ Compose читает корневой `.env`, явно указанный в к�
 и `http://minio:9000`; программы на компьютере — к `localhost`
 с соответствующим опубликованным портом.
 
-`DATABASE_URL` используется API и Alembic, а `S3_*` — адаптером хранилища.
+`DATABASE_URL` используется API, worker и Alembic, а `S3_*` — адаптером хранилища.
+`HIGHLIGHT_MIN_SCORE` передаётся API и worker. `PROCESSING_TIMEOUT_SECONDS`
+ограничивает длительность попытки обработки в worker.
 Учётные данные должны совпадать с настройками PostgreSQL и MinIO; специальные
 символы в URL базы нужно кодировать. Изменение `POSTGRES_*` не меняет учётные
 данные в существующем томе базы. Для этого измените роль через SQL либо явно

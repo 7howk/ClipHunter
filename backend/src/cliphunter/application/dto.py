@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cliphunter.domain.entities import ProjectStatus
+from cliphunter.domain.entities import ProcessingStage, ProjectStatus
 
 
 class CreateProjectInput(BaseModel):
@@ -41,6 +41,29 @@ class ProjectPage(BaseModel):
 
 
 class ProjectStatusOutput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     status: ProjectStatus
     updated_at: datetime
+    stage: ProcessingStage | None = None
+    error: str | None = None
+
+
+class HighlightOutput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    project_id: UUID
+    start_time: float
+    end_time: float
+    score: int = Field(ge=0, le=100)
+    category: str
+    title: str
+    description: str
+    reason: str
+
+
+class HighlightList(BaseModel):
+    items: list[HighlightOutput]
+    min_score: int

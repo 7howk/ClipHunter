@@ -5,7 +5,13 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from cliphunter.infrastructure.database.repositories import SqlAlchemyProjectRepository
+from cliphunter.infrastructure.database.processing_queue import SqlAlchemyProcessingQueue
+from cliphunter.infrastructure.database.repositories import (
+    SqlAlchemyClipRepository,
+    SqlAlchemyHighlightRepository,
+    SqlAlchemyProjectRepository,
+    SqlAlchemyTranscriptRepository,
+)
 
 
 class SqlAlchemyUnitOfWork:
@@ -15,6 +21,10 @@ class SqlAlchemyUnitOfWork:
     async def __aenter__(self) -> Self:
         self.session = self.sessions()
         self.projects = SqlAlchemyProjectRepository(self.session)
+        self.transcripts = SqlAlchemyTranscriptRepository(self.session)
+        self.highlights = SqlAlchemyHighlightRepository(self.session)
+        self.clips = SqlAlchemyClipRepository(self.session)
+        self.processing_queue = SqlAlchemyProcessingQueue(self.session)
         return self
 
     async def __aexit__(

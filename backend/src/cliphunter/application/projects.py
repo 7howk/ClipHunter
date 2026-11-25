@@ -3,7 +3,12 @@
 import logging
 from uuid import UUID
 
-from cliphunter.application.dto import CreateProjectInput, ProjectOutput, ProjectPage
+from cliphunter.application.dto import (
+    CreateProjectInput,
+    ProjectOutput,
+    ProjectPage,
+    ProjectStatusOutput,
+)
 from cliphunter.application.interfaces import UnitOfWork
 from cliphunter.domain.entities import VideoProject
 from cliphunter.domain.errors import InvalidInput, NotFound
@@ -34,6 +39,18 @@ class GetVideoProject:
             if project is None:
                 raise NotFound("Проект не найден")
         return ProjectOutput.model_validate(project)
+
+
+class GetVideoProjectStatus:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self.uow = uow
+
+    async def execute(self, project_id: UUID) -> ProjectStatusOutput:
+        async with self.uow:
+            project = await self.uow.projects.get(project_id)
+            if project is None:
+                raise NotFound("Проект не найден")
+        return ProjectStatusOutput.model_validate(project)
 
 
 class ListVideoProjects:
