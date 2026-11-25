@@ -1,6 +1,8 @@
 """Resolve application ports from the composition root."""
 
-from fastapi import Request
+from typing import Annotated
+
+from fastapi import Depends, Request
 
 from cliphunter.application.interfaces import UnitOfWork
 from cliphunter.application.upload import UploadVideo
@@ -13,6 +15,14 @@ def get_uow(request: Request) -> UnitOfWork:
         raise ServiceUnavailable("База данных не настроена")
     result: UnitOfWork = factory()
     return result
+
+
+Transaction = Annotated[UnitOfWork, Depends(get_uow)]
+
+
+def get_highlight_min_score(request: Request) -> int:
+    score: int = request.app.state.settings.highlight_min_score
+    return score
 
 
 def get_upload_video(request: Request) -> UploadVideo:

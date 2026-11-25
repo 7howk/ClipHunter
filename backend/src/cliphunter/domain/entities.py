@@ -25,6 +25,12 @@ class ClipStatus(StrEnum):
     FAILED = "failed"
 
 
+class ProcessingStage(StrEnum):
+    EXTRACTING_AUDIO = "extracting_audio"
+    TRANSCRIBING = "transcribing"
+    ANALYZING = "analyzing"
+
+
 def validate_interval(start: float, end: float) -> None:
     if not (math.isfinite(start) and math.isfinite(end) and 0 <= start < end):
         raise InvalidInput("Таймкоды должны быть конечными числами: 0 <= start < end")
@@ -39,6 +45,8 @@ class VideoProject:
     file_size: int | None = None
     duration: float | None = None
     status: ProjectStatus = ProjectStatus.CREATED
+    stage: ProcessingStage | None = None
+    error: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -67,6 +75,36 @@ class VideoProject:
         self.duration = duration
         self.status = ProjectStatus.UPLOADED
         self.updated_at = datetime.now(UTC)
+
+    def start_processing(self) -> None:
+        if self.status not in (ProjectStatus.UPLOADED, ProjectStatus.FAILED):
+            raise Conflict("Обработку можно запустить после загрузки видео или ошибки обработки")
+        self.status = ProjectStatus.PROCESSING
+        self.stage = None
+        self.error = None
+        self.updated_at = datetime.now(UTC)
+
+    def set_processing_stage(self, stage: ProcessingStage) -> None:
+        self._require_processing()
+        self.stage = stage
+        self.updated_at = datetime.now(UTC)
+
+    def complete_processing(self, *, has_highlights: bool) -> None:
+        self._require_processing()
+        self.status = ProjectStatus.COMPLETED if has_highlights else ProjectStatus.NO_HIGHLIGHTS
+        self.stage = None
+        self.updated_at = datetime.now(UTC)
+
+    def fail_processing(self, message: str) -> None:
+        self._require_processing()
+        self.status = ProjectStatus.FAILED
+        self.stage = None
+        self.error = message
+        self.updated_at = datetime.now(UTC)
+
+    def _require_processing(self) -> None:
+        if self.status != ProjectStatus.PROCESSING:
+            raise Conflict("Проект сейчас не обрабатывается")
 
 
 @dataclass(kw_only=True)

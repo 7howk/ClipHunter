@@ -22,6 +22,7 @@ services:
       UPLOAD_TIMEOUT_SECONDS: ${UPLOAD_TIMEOUT_SECONDS:-900}
       FFPROBE_TIMEOUT_SECONDS: ${FFPROBE_TIMEOUT_SECONDS:-20}
       S3_TRANSFER_TIMEOUT_SECONDS: ${S3_TRANSFER_TIMEOUT_SECONDS:-300}
+      HIGHLIGHT_MIN_SCORE: ${HIGHLIGHT_MIN_SCORE:-60}
     ports:
       - "127.0.0.1:${APP_PORT:-8000}:${APP_PORT:-8000}"
     depends_on:
@@ -43,6 +44,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  worker:
+    build:
+      context: ../backend
+    command: ["python", "-m", "cliphunter.worker"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      HIGHLIGHT_MIN_SCORE: ${HIGHLIGHT_MIN_SCORE:-60}
+      PROCESSING_TIMEOUT_SECONDS: ${PROCESSING_TIMEOUT_SECONDS:-1800}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
 
   web:
     build:

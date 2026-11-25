@@ -7,17 +7,27 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
 from cliphunter.application.dto import (
     CreateProjectInput,
+    HighlightList,
     ProjectOutput,
     ProjectPage,
     ProjectStatusOutput,
 )
-from cliphunter.application.interfaces import UnitOfWork
-from cliphunter.application.projects import CreateVideoProject, GetVideoProject, ListVideoProjects
+from cliphunter.application.highlights import ListProjectHighlights
+from cliphunter.application.processing import StartProjectProcessing
+from cliphunter.application.projects import (
+    CreateVideoProject,
+    GetVideoProject,
+    GetVideoProjectStatus,
+    ListVideoProjects,
+)
 from cliphunter.application.upload import UploadInput, UploadVideo
-from cliphunter.presentation.http.dependencies import get_uow, get_upload_video
+from cliphunter.presentation.http.dependencies import (
+    Transaction,
+    get_highlight_min_score,
+    get_upload_video,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-Transaction = Annotated[UnitOfWork, Depends(get_uow)]
 
 
 @router.post("", response_model=ProjectOutput, status_code=201, summary="Создать проект")
@@ -43,10 +53,35 @@ async def get_project(project_id: UUID, uow: Transaction) -> ProjectOutput:
     return await GetVideoProject(uow).execute(project_id)
 
 
-@router.get("/{project_id}/status", response_model=ProjectStatusOutput, summary="Получить статус")
+@router.get(
+    "/{project_id}/status",
+    response_model=ProjectStatusOutput,
+    response_model_exclude_none=True,
+    summary="Получить статус",
+)
 async def get_project_status(project_id: UUID, uow: Transaction) -> ProjectStatusOutput:
-    project = await GetVideoProject(uow).execute(project_id)
-    return ProjectStatusOutput(id=project.id, status=project.status, updated_at=project.updated_at)
+    return await GetVideoProjectStatus(uow).execute(project_id)
+
+
+@router.post(
+    "/{project_id}/process",
+    response_model=ProjectOutput,
+    status_code=202,
+    summary="Поставить видео в очередь на обработку",
+)
+async def start_processing(project_id: UUID, uow: Transaction) -> ProjectOutput:
+    return await StartProjectProcessing(uow).execute(project_id)
+
+
+@router.get(
+    "/{project_id}/highlights", response_model=HighlightList, summary="Получить хайлайты проекта"
+)
+async def list_project_highlights(
+    project_id: UUID,
+    uow: Transaction,
+    min_score: Annotated[int, Depends(get_highlight_min_score)],
+) -> HighlightList:
+    return await ListProjectHighlights(uow, min_score).execute(project_id)
 
 
 @router.post(
