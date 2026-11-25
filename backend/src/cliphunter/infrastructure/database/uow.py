@@ -5,6 +5,7 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from cliphunter.infrastructure.database.clip_queue import SqlAlchemyClipQueue
 from cliphunter.infrastructure.database.processing_queue import SqlAlchemyProcessingQueue
 from cliphunter.infrastructure.database.repositories import (
     SqlAlchemyClipRepository,
@@ -12,6 +13,7 @@ from cliphunter.infrastructure.database.repositories import (
     SqlAlchemyProjectRepository,
     SqlAlchemyTranscriptRepository,
 )
+from cliphunter.infrastructure.database.storage_cleanup import SqlAlchemyStorageCleanup
 
 
 class SqlAlchemyUnitOfWork:
@@ -24,7 +26,9 @@ class SqlAlchemyUnitOfWork:
         self.transcripts = SqlAlchemyTranscriptRepository(self.session)
         self.highlights = SqlAlchemyHighlightRepository(self.session)
         self.clips = SqlAlchemyClipRepository(self.session)
+        self.clip_queue = SqlAlchemyClipQueue(self.session)
         self.processing_queue = SqlAlchemyProcessingQueue(self.session)
+        self.storage_cleanup = SqlAlchemyStorageCleanup(self.session)
         return self
 
     async def __aexit__(

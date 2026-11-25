@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `web` | Сборка frontend, которую раздаёт nginx; `/api` проксируется в `api` | `GET /` |
 | `api` | Контейнер Python/FastAPI, работающий без прав root | `/api/v1/health` |
-| `worker` | Отдельный процесс обработки задач из PostgreSQL | Сквозной тест `smoke_upload.py` |
+| `worker` | Анализ, нарезка клипов и удаление файлов по задачам из PostgreSQL | Сквозные тесты `smoke_upload.py` и `smoke_clips.py` |
 | `postgres` | PostgreSQL 17 с данными в постоянном томе | `pg_isready` |
 | `migrate` | Применение миграций до запуска API и worker | Успешный выход с кодом 0 |
 | `minio-init` | Создание локального закрытого бакета | Успешный выход с кодом 0 |
@@ -26,7 +26,8 @@ API запускается после успешной проверки PostgreS
 API работает с PostgreSQL. Сервис `minio-init` создаёт локальный бакет, после чего API принимает загрузки в MinIO. FFmpeg установлен ради `ffprobe`, проверяющего загруженные видео.
 Worker использует тот же backend-образ и запускается после миграций и
 подготовки бакета. Очередь хранится в PostgreSQL. Worker скачивает исходник
-из MinIO, извлекает звук через ffmpeg и обращается к Groq.
+из MinIO, извлекает звук через ffmpeg и обращается к Groq. Тот же процесс
+генерирует MP4 по запросу и очищает файлы удалённых проектов.
 
 MinIO собирается из официального исходного кода закреплённого выпуска
 [`RELEASE.2025-10-15T17-29-55Z`](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z).
@@ -48,6 +49,7 @@ curl --fail http://localhost:8000/openapi.json
 curl --fail http://localhost:9000/minio/health/ready
 docker compose --env-file .env -f infra/docker-compose.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
 docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_upload.py
+docker compose --env-file .env -f infra/docker-compose.yml exec -T api python - < backend/tests/integration/smoke_clips.py
 ```
 
 Если `.env` уже настроен, не перезаписывайте его примером. При изменении
@@ -76,7 +78,8 @@ Compose читает корневой `.env`, явно указанный в к�
 
 `DATABASE_URL` используется API, worker и Alembic, а `S3_*` — адаптером хранилища.
 `HIGHLIGHT_MIN_SCORE` передаётся API и worker. `PROCESSING_TIMEOUT_SECONDS`
-ограничивает длительность попытки обработки в worker.
+ограничивает длительность попытки обработки в worker. `CLIP_TIMEOUT_SECONDS`
+задаёт лимит времени генерации клипа.
 В локальном `.env` задаётся `GROQ_API_KEY`, а при необходимости модели
 `GROQ_STT_MODEL` и `GROQ_LLM_MODEL`. По умолчанию используются
 `whisper-large-v3-turbo` и `openai/gpt-oss-120b`. При пустом ключе остальной
@@ -100,7 +103,11 @@ Compose читает корневой `.env`, явно указанный в к�
 Тот же адаптер использует S3 API без изменения бизнес-логики. Бакет R2
 должен быть создан заранее; локальный `minio-init` всегда работает только
 с `http://minio:9000` и учётными данными MinIO. Для проверки R2 нужны ваши ключи;
-автоматические тесты используют MinIO. Подписанные ссылки появятся вместе с клипами. Не добавляйте ключи в репозиторий.
+автоматические тесты используют MinIO. `S3_PUBLIC_ENDPOINT_URL` — адрес, по
+которому браузер скачивает подписанные клипы. В Compose по умолчанию это
+`http://localhost:<MINIO_PORT>`. Для R2 укажите S3 API endpoint аккаунта.
+[Подписанные ссылки Cloudflare R2](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)
+
 Данный Compose предназначен для локальной разработки.
 
 ## Постоянные тома

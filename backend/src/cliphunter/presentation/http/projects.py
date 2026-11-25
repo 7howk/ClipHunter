@@ -16,6 +16,7 @@ from cliphunter.application.highlights import ListProjectHighlights
 from cliphunter.application.processing import StartProjectProcessing
 from cliphunter.application.projects import (
     CreateVideoProject,
+    DeleteVideoProject,
     GetVideoProject,
     GetVideoProjectStatus,
     ListVideoProjects,
@@ -51,6 +52,12 @@ async def list_projects(
 @router.get("/{project_id}", response_model=ProjectOutput, summary="Получить проект")
 async def get_project(project_id: UUID, uow: Transaction) -> ProjectOutput:
     return await GetVideoProject(uow).execute(project_id)
+
+
+@router.delete("/{project_id}", status_code=204, summary="Удалить проект и его файлы")
+async def delete_project(project_id: UUID, uow: Transaction) -> Response:
+    await DeleteVideoProject(uow).execute(project_id)
+    return Response(status_code=204)
 
 
 @router.get(

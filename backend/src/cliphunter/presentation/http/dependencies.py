@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from cliphunter.application.interfaces import UnitOfWork
+from cliphunter.application.interfaces import ObjectStorage, UnitOfWork
 from cliphunter.application.upload import UploadVideo
 from cliphunter.domain.errors import ServiceUnavailable
 
@@ -25,8 +25,13 @@ def get_highlight_min_score(request: Request) -> int:
     return score
 
 
+def get_storage(request: Request) -> ObjectStorage | None:
+    storage: ObjectStorage | None = request.app.state.storage
+    return storage
+
+
 def get_upload_video(request: Request) -> UploadVideo:
-    storage = request.app.state.storage
+    storage = get_storage(request)
     if storage is None:
         raise ServiceUnavailable("Объектное хранилище не настроено")
     return UploadVideo(

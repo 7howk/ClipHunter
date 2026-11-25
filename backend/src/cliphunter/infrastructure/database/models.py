@@ -138,6 +138,18 @@ class GeneratedClipModel(Base):
         ),
         Index("ix_generated_clips_project_id", "project_id"),
         Index("ix_generated_clips_highlight_id", "highlight_id"),
+        Index(
+            "uq_generated_clips_active_highlight",
+            "highlight_id",
+            unique=True,
+            postgresql_where=text("status != 'failed'"),
+        ),
+        Index(
+            "ix_generated_clips_queue",
+            "created_at",
+            "id",
+            postgresql_where=text("status IN ('pending', 'processing')"),
+        ),
     )
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     project_id: Mapped[UUID] = mapped_column(ForeignKey("video_projects.id", ondelete="CASCADE"))
@@ -145,3 +157,15 @@ class GeneratedClipModel(Base):
     storage_key: Mapped[str | None] = mapped_column(String(1024), unique=True)
     status: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    processing_lease_token: Mapped[UUID | None] = mapped_column(Uuid)
+    processing_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    processing_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+
+
+class StorageDeletionModel(Base):
+    __tablename__ = "storage_deletions"
+
+    storage_key: Mapped[str] = mapped_column(String(1024), primary_key=True)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), index=True
+    )

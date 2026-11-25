@@ -8,10 +8,12 @@ from types import TracebackType
 from typing import Protocol, Self
 
 from cliphunter.domain.repositories import (
+    ClipQueue,
     ClipRepository,
     HighlightRepository,
     ProcessingQueue,
     ProjectRepository,
+    StorageCleanupRepository,
     TranscriptRepository,
 )
 
@@ -28,6 +30,12 @@ class UnitOfWork(Protocol):
 
     @property
     def clips(self) -> ClipRepository: ...
+
+    @property
+    def clip_queue(self) -> ClipQueue: ...
+
+    @property
+    def storage_cleanup(self) -> StorageCleanupRepository: ...
 
     @property
     def processing_queue(self) -> ProcessingQueue: ...
@@ -63,8 +71,12 @@ class VideoInspector(Protocol):
 
 
 class ObjectStorage(Protocol):
-    async def upload(self, path: Path, key: str, content_type: str) -> None: ...
+    async def upload(
+        self, path: Path, key: str, content_type: str, *, filename: str | None = None
+    ) -> None: ...
 
     async def delete(self, key: str) -> None: ...
 
     async def download(self, key: str, path: Path) -> None: ...
+
+    def sign_download(self, key: str, filename: str, *, expires_in: int) -> str: ...

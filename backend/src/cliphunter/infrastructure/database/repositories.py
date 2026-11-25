@@ -3,7 +3,8 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +17,7 @@ from cliphunter.domain.entities import (
     TranscriptSegment,
     VideoProject,
 )
-from cliphunter.domain.errors import Conflict
+from cliphunter.domain.errors import Conflict, NotFound
 from cliphunter.infrastructure.database.models import (
     GeneratedClipModel,
     HighlightModel,
@@ -79,6 +80,11 @@ class SqlAlchemyProjectRepository:
         for name, value in vars(project).items():
             setattr(model, name, value)
         await self.session.flush()
+
+    async def delete(self, project_id: UUID) -> None:
+        await self.session.execute(
+            delete(VideoProjectModel).where(VideoProjectModel.id == project_id)
+        )
 
 
 class SqlAlchemyTranscriptRepository:
@@ -145,13 +151,57 @@ class SqlAlchemyClipRepository:
 
     async def get(self, clip_id: UUID) -> GeneratedClip | None:
         model = await self.session.get(GeneratedClipModel, clip_id)
-        if model is None:
-            return None
-        return GeneratedClip(
-            id=model.id,
-            project_id=model.project_id,
-            highlight_id=model.highlight_id,
-            storage_key=model.storage_key,
-            status=ClipStatus(model.status),
-            created_at=model.created_at,
+        return None if model is None else to_clip(model)
+
+    async def add_or_get_active(self, clip: GeneratedClip) -> GeneratedClip:
+        existing = await self.session.scalar(
+            select(GeneratedClipModel).where(
+                GeneratedClipModel.highlight_id == clip.highlight_id,
+                GeneratedClipModel.status != ClipStatus.FAILED,
+            )
         )
+        if existing is not None:
+            return to_clip(existing)
+        stmt = (
+            insert(GeneratedClipModel)
+            .values(**vars(clip))
+            .on_conflict_do_update(
+                index_elements=[GeneratedClipModel.highlight_id],
+                index_where=text("status != 'failed'"),
+                set_={"id": GeneratedClipModel.id},
+            )
+            .returning(GeneratedClipModel)
+        )
+        try:
+            model = (await self.session.scalars(stmt)).one()
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) == "23503":
+                raise NotFound("Хайлайт не найден") from None
+            raise
+        return to_clip(model)
+
+    async def list_for_project(self, project_id: UUID) -> list[GeneratedClip]:
+        stmt = select(GeneratedClipModel).where(GeneratedClipModel.project_id == project_id)
+        return [to_clip(model) for model in await self.session.scalars(stmt)]
+
+    async def save(self, clip: GeneratedClip) -> None:
+        model = await self.session.get(GeneratedClipModel, clip.id)
+        if model is None:
+            raise RuntimeError("Cannot save a clip that was not loaded")
+        model.status = clip.status
+        model.storage_key = clip.storage_key
+        model.processing_lease_token = None
+        model.processing_lease_until = None
+        model.processing_attempts = 0
+        await self.session.flush()
+
+
+def to_clip(model: GeneratedClipModel) -> GeneratedClip:
+    return GeneratedClip(
+        id=model.id,
+        project_id=model.project_id,
+        highlight_id=model.highlight_id,
+        storage_key=model.storage_key,
+        status=ClipStatus(model.status),
+        created_at=model.created_at,
+    )
