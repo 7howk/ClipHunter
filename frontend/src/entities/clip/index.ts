@@ -1,7 +1,7 @@
 export {
   clipApi,
   useGenerateClipMutation,
-  useGetClipDownloadQuery,
+  useLazyGetClipDownloadQuery,
   useGetClipQuery,
 } from './api/clipApi';
 export { ClipRow } from './ui/ClipRow';

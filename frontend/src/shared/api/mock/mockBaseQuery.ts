@@ -48,15 +48,6 @@ function readDuration(file: Blob): Promise<number> {
   });
 }
 
-/** Этапы, которых в backend ещё нет: обработка, хайлайты, клипы. */
-export function isSimulatedPipelineRoute({ verb, parts }: ParsedRequest): boolean {
-  const [resource, , action] = parts;
-  if (resource === 'projects') {
-    return (action === 'process' && verb === 'POST') || (action === 'highlights' && verb === 'GET');
-  }
-  return resource === 'highlights' || resource === 'clips';
-}
-
 /** Ответ имитации на разобранный запрос. Маршруты и форматы — как в контракте API. */
 export async function handleMockRequest({
   verb,
@@ -74,8 +65,11 @@ export async function handleMockRequest({
 
     if (!projectId) {
       if (verb === 'GET') {
-        const items = mockDb.listProjects().reverse();
-        return { data: { items, total: items.length, limit: 20, offset: 0 } };
+        const all = mockDb.listProjects().reverse();
+        const limit = Number(params.limit ?? 20);
+        const offset = Number(params.offset ?? 0);
+        const items = all.slice(offset, offset + limit);
+        return { data: { items, total: all.length, limit, offset } };
       }
       if (verb === 'POST') {
         const title = (body as { title?: string } | undefined)?.title?.trim();
@@ -110,7 +104,9 @@ export async function handleMockRequest({
 
     if (projectId && action === 'process' && verb === 'POST') {
       const project = mockDb.startProcessing(projectId);
-      if (project === 'conflict') return conflict('Сначала загрузите видео');
+      if (project === 'conflict') {
+        return conflict('Обработку можно запустить после загрузки видео или ошибки обработки');
+      }
       return project ? { data: project } : notFound('Проект');
     }
 

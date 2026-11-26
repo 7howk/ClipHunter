@@ -2,9 +2,16 @@ import { combineSlices, configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 
 import { localPreviewSlice } from '@/entities/project';
-import { generatedClipsSlice } from '@/features/generate-clips';
+import {
+  CLIPS_STORAGE_KEY,
+  clipsRestored,
+  generatedClipsSlice,
+  loadGeneratedClips,
+  saveGeneratedClips,
+} from '@/features/generate-clips';
 import { highlightSelectionSlice } from '@/features/select-highlights';
 import { baseApi } from '@/shared/api';
+import { API_MODE } from '@/shared/config';
 
 const rootReducer = combineSlices(
   baseApi,
@@ -14,12 +21,29 @@ const rootReducer = combineSlices(
 );
 
 export function makeStore(preloadedState?: Partial<RootState>) {
+  // Имитация живёт до перезагрузки, поэтому в режиме mock клипы не запоминаем
+  const persist = API_MODE !== 'mock';
   const store = configureStore({
     reducer: rootReducer,
-    preloadedState,
+    preloadedState:
+      preloadedState ?? (persist ? { generatedClips: loadGeneratedClips() } : undefined),
     middleware: (getDefault) => getDefault().concat(baseApi.middleware),
   });
   setupListeners(store.dispatch);
+
+  if (persist) {
+    let saved = store.getState().generatedClips;
+    store.subscribe(() => {
+      const next = store.getState().generatedClips;
+      if (next === saved) return;
+      saved = next;
+      saveGeneratedClips(next);
+    });
+    // Каждая вкладка пишет список целиком: без синхронизации они затирали бы друг друга
+    window.addEventListener('storage', (event) => {
+      if (event.key === CLIPS_STORAGE_KEY) store.dispatch(clipsRestored(loadGeneratedClips()));
+    });
+  }
   return store;
 }
 

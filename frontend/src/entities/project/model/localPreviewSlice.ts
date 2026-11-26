@@ -1,5 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+import { projectApi } from '../api/projectApi';
+
 /**
  * Локальное превью: blob-URL исходного файла, чтобы смотреть найденные моменты
  * без скачивания видео обратно с сервера. Живёт только в текущей вкладке.
@@ -21,6 +23,16 @@ export const localPreviewSlice = createSlice({
       const { [action.payload]: _released, ...rest } = state.urls;
       state.urls = rest;
     },
+  },
+  extraReducers: (builder) => {
+    builder.addMatcher(projectApi.endpoints.deleteProject.matchFulfilled, (state, action) => {
+      const projectId = action.meta.arg.originalArgs;
+      const url = state.urls[projectId];
+      if (!url) return;
+      URL.revokeObjectURL(url);
+      const { [projectId]: _removed, ...rest } = state.urls;
+      state.urls = rest;
+    });
   },
   selectors: {
     selectPreviewUrl: (state, projectId: string): string | undefined => state.urls[projectId],

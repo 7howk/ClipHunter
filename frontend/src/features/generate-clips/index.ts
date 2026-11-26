@@ -1,5 +1,7 @@
+export { CLIPS_STORAGE_KEY, loadGeneratedClips, saveGeneratedClips } from './model/clipStorage';
 export {
   clipRequested,
+  clipsRestored,
   generatedClipsSlice,
   selectRequestedClips,
   type GeneratedClipsRootState,

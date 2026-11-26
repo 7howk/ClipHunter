@@ -1,7 +1,6 @@
 /**
- * DTO REST API /api/v1. Реализованные части повторяют схемы backend
- * (backend/src/cliphunter/application/dto.py, domain/entities.py),
- * остальные — контракт из BACKEND_INFRA_TASK.md (разделы 6.4, 7, 8).
+ * DTO REST API /api/v1. Повторяют схемы backend
+ * (backend/src/cliphunter/application/dto.py, domain/entities.py).
  * Поля в snake_case — так их отдаёт FastAPI/Pydantic.
  */
 
@@ -9,13 +8,10 @@
 export type ProjectStatus =
   'created' | 'uploaded' | 'processing' | 'completed' | 'no_highlights' | 'failed';
 
-/**
- * Этап внутри статуса processing. В backend этого поля пока нет: его отдаёт
- * имитация pipeline. Это предложение к контракту, интерфейс работает и без него.
- */
+/** ProcessingStage: этап внутри статуса processing. Пока задача в очереди, его нет. */
 export type ProcessingStage = 'extracting_audio' | 'transcribing' | 'analyzing';
 
-/** ProjectOutput — реализовано в backend. */
+/** ProjectOutput. */
 export interface VideoProjectDto {
   id: string;
   title: string;
@@ -27,7 +23,7 @@ export interface VideoProjectDto {
   updated_at: string;
 }
 
-/** ProjectPage — реализовано в backend. */
+/** ProjectPage. */
 export interface ProjectPageDto {
   items: VideoProjectDto[];
   total: number;
@@ -35,7 +31,7 @@ export interface ProjectPageDto {
   offset: number;
 }
 
-/** ProjectStatusOutput — реализовано в backend; stage и error пока только в имитации. */
+/** ProjectStatusOutput: пустые stage и error backend не присылает. */
 export interface ProjectStatusDto {
   id: string;
   status: ProjectStatus;

@@ -1,6 +1,7 @@
 export {
   projectApi,
   useCreateProjectMutation,
+  useDeleteProjectMutation,
   useGetProjectQuery,
   useListProjectsQuery,
   useGetProjectStatusQuery,

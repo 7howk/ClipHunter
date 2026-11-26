@@ -9,6 +9,7 @@
   position: sticky;
   top: var(--space-6);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -21,7 +22,9 @@
 
 .noPreview {
   display: grid;
-  place-content: center;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  min-width: 0;
   gap: var(--space-1);
   aspect-ratio: 16 / 9;
   padding: var(--space-6);
@@ -65,7 +68,7 @@
 
 @media (max-width: 960px) {
   .workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sticky {

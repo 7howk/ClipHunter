@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import {
   previewAttached,
   useCreateProjectMutation,
+  useDeleteProjectMutation,
   useStartProcessingMutation,
   useUploadVideoMutation,
 } from '@/entities/project';
@@ -18,6 +19,16 @@ export const UPLOAD_STAGE_LABELS: Record<Exclude<UploadStage, 'idle' | 'error'>,
 };
 
 /**
+ * Backend точно не принял файл. При обрыве связи, 5xx и конфликте видео могло
+ * сохраниться, поэтому такой проект не трогаем.
+ */
+function isRejected(error: unknown): boolean {
+  const { status, originalStatus } = error as { status?: unknown; originalStatus?: unknown };
+  const code = status === 'PARSING_ERROR' ? originalStatus : status;
+  return typeof code === 'number' && code >= 400 && code < 500 && code !== 409;
+}
+
+/**
  * Сценарий загрузки: создать проект → загрузить файл → запустить обработку.
  * Возвращает id проекта, чтобы страница могла перейти к его результатам.
  */
@@ -25,6 +36,7 @@ export function useUploadVideo() {
   const dispatch = useDispatch();
   const [createProject] = useCreateProjectMutation();
   const [uploadVideo] = useUploadVideoMutation();
+  const [deleteProject] = useDeleteProjectMutation();
   const [startProcessing] = useStartProcessingMutation();
   const [stage, setStage] = useState<UploadStage>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +49,13 @@ export function useUploadVideo() {
         const project = await createProject({ title }).unwrap();
 
         setStage('uploading');
-        await uploadVideo({ projectId: project.id, file }).unwrap();
+        try {
+          await uploadVideo({ projectId: project.id, file }).unwrap();
+        } catch (caught) {
+          // Отклонённый файл оставил бы в списке пустой проект
+          if (isRejected(caught)) void deleteProject(project.id);
+          throw caught;
+        }
         dispatch(previewAttached({ projectId: project.id, url: URL.createObjectURL(file) }));
 
         // Видео уже сохранено. Если запуск обработки не удался, страница проекта
@@ -55,7 +73,7 @@ export function useUploadVideo() {
         return null;
       }
     },
-    [createProject, uploadVideo, startProcessing, dispatch],
+    [createProject, uploadVideo, deleteProject, startProcessing, dispatch],
   );
 
   return { run, stage, error, busy: stage !== 'idle' && stage !== 'error' };

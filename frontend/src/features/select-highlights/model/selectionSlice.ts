@@ -1,4 +1,6 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, isAnyOf, type PayloadAction } from '@reduxjs/toolkit';
+
+import { projectApi } from '@/entities/project';
 
 /** Какие моменты пользователь отметил для нарезки, по проектам. */
 export interface HighlightSelectionState {
@@ -22,6 +24,19 @@ export const highlightSelectionSlice = createSlice({
     selectionCleared(state, action: PayloadAction<string>) {
       state.byProject[action.payload] = [];
     },
+  },
+  extraReducers: (builder) => {
+    // После повторной обработки или удаления прежних хайлайтов не существует
+    builder.addMatcher(
+      isAnyOf(
+        projectApi.endpoints.startProcessing.matchFulfilled,
+        projectApi.endpoints.deleteProject.matchFulfilled,
+      ),
+      (state, action) => {
+        const { [action.meta.arg.originalArgs]: _removed, ...rest } = state.byProject;
+        state.byProject = rest;
+      },
+    );
   },
   selectors: {
     selectSelectedHighlightIds: (state, projectId: string): readonly string[] =>

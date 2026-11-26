@@ -1,9 +1,15 @@
-import { useSelector } from 'react-redux';
+import { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { ClipRow } from '@/entities/clip';
-import type { HighlightDto } from '@/shared/api';
+import { ClipRow, useGenerateClipMutation } from '@/entities/clip';
+import { getErrorMessage, type HighlightDto } from '@/shared/api';
+import { Notice } from '@/shared/ui';
 
-import { selectRequestedClips, type GeneratedClipsRootState } from '../model/generatedClipsSlice';
+import {
+  clipRequested,
+  selectRequestedClips,
+  type GeneratedClipsRootState,
+} from '../model/generatedClipsSlice';
 
 import styles from './RequestedClipsList.module.css';
 
@@ -19,10 +25,28 @@ const slug = (text: string) =>
     .replace(/^-|-$/g, '');
 
 export function RequestedClipsList({ projectId, highlights }: RequestedClipsListProps) {
+  const dispatch = useDispatch();
+  const [generateClip] = useGenerateClipMutation();
+  const [error, setError] = useState<string | null>(null);
   const clips = useSelector((state: GeneratedClipsRootState) =>
     selectRequestedClips(state, projectId),
   );
-  if (clips.length === 0) return null;
+  // Запомненный клип мог остаться от прежней обработки: таких моментов уже нет
+  const rows = clips.flatMap(({ clipId, highlightId }) => {
+    const highlight = highlights.find((item) => item.id === highlightId);
+    return highlight ? [{ clipId, highlight }] : [];
+  });
+  if (rows.length === 0) return null;
+
+  const retry = async (highlightId: string) => {
+    setError(null);
+    try {
+      const clip = await generateClip(highlightId).unwrap();
+      dispatch(clipRequested({ projectId, clipId: clip.id, highlightId }));
+    } catch (caught) {
+      setError(getErrorMessage(caught as Parameters<typeof getErrorMessage>[0]));
+    }
+  };
 
   return (
     <section className={styles.section} aria-labelledby="clips-title">
@@ -30,14 +54,21 @@ export function RequestedClipsList({ projectId, highlights }: RequestedClipsList
         Клипы
       </h2>
       <ul className={styles.list}>
-        {clips.map(({ clipId, highlightId }) => {
-          const highlight = highlights.find((item) => item.id === highlightId);
-          const title = highlight?.title ?? 'Клип';
-          return (
-            <ClipRow key={clipId} clipId={clipId} title={title} fileName={`${slug(title)}.mp4`} />
-          );
-        })}
+        {rows.map(({ clipId, highlight }) => (
+          <ClipRow
+            key={clipId}
+            clipId={clipId}
+            title={highlight.title}
+            fileName={`${slug(highlight.title)}.mp4`}
+            onRetry={() => void retry(highlight.id)}
+          />
+        ))}
       </ul>
+      {error && (
+        <Notice tone="error" title="Не удалось запустить нарезку">
+          {error}
+        </Notice>
+      )}
     </section>
   );
 }

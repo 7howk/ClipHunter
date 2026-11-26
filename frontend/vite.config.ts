@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
+      // fetch в Node не принимает относительные адреса
+      env: { VITE_API_URL: 'http://api.test', VITE_API_MODE: 'real' },
       setupFiles: ['./src/shared/config/tests/setup.ts'],
       css: { modules: { classNameStrategy: 'non-scoped' } },
     },

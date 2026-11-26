@@ -8,6 +8,7 @@ import {
   useGetProjectQuery,
   useGetProjectStatusQuery,
 } from '@/entities/project';
+import { DeleteProjectButton } from '@/features/delete-project';
 import { getErrorMessage } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { formatBytes, formatTimecode } from '@/shared/lib';
@@ -31,6 +32,8 @@ export function ProjectPage() {
   const { data: status, error: statusError } = useGetProjectStatusQuery(projectId, {
     pollingInterval: stopPolling ? 0 : POLL_MS,
     skipPollingIfUnfocused: true,
+    // Проект могли удалить, пока он лежал в кеше
+    refetchOnMountOrArgChange: true,
   });
   const final = status ? isFinalStatus(status.status) : false;
 
@@ -39,7 +42,7 @@ export function ProjectPage() {
     error: projectError,
     isLoading,
     refetch: refetchProject,
-  } = useGetProjectQuery(projectId);
+  } = useGetProjectQuery(projectId, { refetchOnMountOrArgChange: true });
 
   // Когда обработка закончилась, у проекта обновляются статус и метаданные
   useEffect(() => {
@@ -54,7 +57,10 @@ export function ProjectPage() {
 
   const error = projectError ?? statusError;
 
-  if (error) {
+  // Разовый сбой опроса не прячет уже открытый проект, а удалённый проект — прячет
+  const gone = error && 'status' in error && error.status === 404;
+
+  if (error && (gone || !project || !status)) {
     return (
       <Shell>
         <Notice
@@ -97,9 +103,18 @@ export function ProjectPage() {
             .filter(Boolean)
             .join(', ')}
         </p>
+        <div className={styles.actions}>
+          <DeleteProjectButton key={project.id} projectId={project.id} />
+        </div>
       </div>
 
       <DemoApiNotice />
+
+      {error && (
+        <Notice tone="error" title="Не получается обновить статус">
+          {getErrorMessage(error)}
+        </Notice>
+      )}
 
       {status.status === 'created' && (
         <Notice
@@ -110,7 +125,7 @@ export function ProjectPage() {
             </ButtonLink>
           }
         >
-          Создайте проект заново на странице загрузки и прикрепите запись
+          Удалите этот проект и загрузите запись заново
         </Notice>
       )}
 
@@ -121,17 +136,10 @@ export function ProjectPage() {
       )}
 
       {status.status === 'failed' && (
-        <Notice
-          tone="error"
-          title="Обработка остановилась"
-          action={
-            <ButtonLink to={routes.upload} variant="secondary" size="sm">
-              Загрузить заново
-            </ButtonLink>
-          }
-        >
-          {status.error ?? 'Сервер не смог обработать запись. Попробуйте загрузить её ещё раз'}
-        </Notice>
+        <StartProcessing
+          projectId={project.id}
+          failure={status.error ?? 'Сервер не смог обработать запись'}
+        />
       )}
 
       {status.status === 'no_highlights' && <EmptyResult />}
@@ -180,7 +188,7 @@ function EmptyResult() {
       </PixelHeading>
       <p className={styles.emptyText}>
         В этой записи не нашлось моментов выше порога интересности. Мы не придумываем хайлайты ради
-        списка: попробуйте запись подлиннее или с более живыми эмоциями.
+        списка. Моменты ищутся по речи, поэтому попробуйте запись подлиннее и с живыми репликами.
       </p>
       <ButtonLink to={routes.upload}>Загрузить другую запись</ButtonLink>
     </section>

@@ -1,10 +1,16 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 
-import { STATUS_LABELS, useListProjectsQuery } from '@/entities/project';
+import { projectApi, STATUS_LABELS, useListProjectsQuery } from '@/entities/project';
 import { routes } from '@/shared/config';
 import { formatTimecode } from '@/shared/lib';
+import { Button } from '@/shared/ui';
 
 import styles from './RecentProjects.module.css';
+
+const PAGE_SIZE = 5;
+const POLL_MS = 5000;
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
@@ -13,19 +19,32 @@ const dateFormat = new Intl.DateTimeFormat('ru-RU', {
   minute: '2-digit',
 });
 
-/** Последние проекты из GET /api/v1/projects — к ним можно вернуться без повторной загрузки. */
+/** Проекты из GET /api/v1/projects: к ним можно вернуться без повторной загрузки. */
 export function RecentProjects() {
-  const { data, isLoading, isError } = useListProjectsQuery({ limit: 5 });
+  const [page, setPage] = useState(0);
+  const query = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+  // Опрашиваем список, только пока в нём есть обрабатывающиеся проекты
+  const cached = projectApi.endpoints.listProjects.useQueryState(query).data;
+  const processing = cached?.items.some((item) => item.status === 'processing');
+  const { data, isLoading, isError } = useListProjectsQuery(query, {
+    pollingInterval: processing ? POLL_MS : 0,
+    skipPollingIfUnfocused: true,
+    refetchOnMountOrArgChange: true,
+  });
 
   if (isLoading) return null;
+
+  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  // После удаления последняя страница может исчезнуть
+  if (data && page >= pages) setPage(pages - 1);
 
   return (
     <section className={styles.section} aria-labelledby="recent-title">
       <h2 id="recent-title" className={styles.title}>
-        Недавние проекты
+        Проекты
       </h2>
       {isError && <p className={styles.muted}>Список недоступен: backend не отвечает</p>}
-      {data && data.items.length === 0 && (
+      {data && data.total === 0 && (
         <p className={styles.muted}>Пока пусто. Первый проект появится здесь после загрузки</p>
       )}
       {data && data.items.length > 0 && (
@@ -45,6 +64,32 @@ export function RecentProjects() {
             </li>
           ))}
         </ul>
+      )}
+      {pages > 1 && (
+        <nav className={styles.pager} aria-label="Страницы списка проектов">
+          <Button
+            variant="text"
+            size="sm"
+            icon={<ChevronLeft />}
+            onClick={() => setPage(page - 1)}
+            disabled={page === 0}
+          >
+            Новее
+          </Button>
+          <span className={styles.muted}>
+            {page + 1} из {pages}
+          </span>
+          <Button
+            variant="text"
+            size="sm"
+            icon={<ChevronRight />}
+            iconPosition="end"
+            onClick={() => setPage(page + 1)}
+            disabled={page >= pages - 1}
+          >
+            Старше
+          </Button>
+        </nav>
       )}
     </section>
   );

@@ -14,6 +14,12 @@
   color: var(--ink-3);
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .list {
   display: grid;
   margin: 0;

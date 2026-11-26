@@ -13,10 +13,10 @@ export const clipApi = baseApi.injectEndpoints({
 
     getClipDownload: build.query<ClipDownloadDto, string>({
       query: (clipId) => `/clips/${clipId}/download`,
-      // Ссылка подписанная и короткоживущая — не держим её в кеше дольше минуты
+      // Ссылка подписанная и временная: запрашиваем её по нажатию и долго не храним
       keepUnusedDataFor: 60,
     }),
   }),
 });
 
-export const { useGenerateClipMutation, useGetClipQuery, useGetClipDownloadQuery } = clipApi;
+export const { useGenerateClipMutation, useGetClipQuery, useLazyGetClipDownloadQuery } = clipApi;
