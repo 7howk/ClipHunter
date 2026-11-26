@@ -79,7 +79,7 @@ services:
     build:
       context: ../frontend
       args:
-        VITE_API_MODE: ${VITE_API_MODE:-hybrid}
+        VITE_API_MODE: ${VITE_API_MODE:-real}
         VITE_MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-500}
         VITE_MAX_VIDEO_DURATION_SECONDS: ${MAX_VIDEO_DURATION_SECONDS:-1800}
     environment:
