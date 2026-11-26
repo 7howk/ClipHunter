@@ -9,7 +9,7 @@ export interface ParsedRequest {
   body: unknown;
 }
 
-/** Разбор аргументов RTK Query, чтобы маршрутизировать запрос между backend и имитацией. */
+/** Разбор аргументов RTK Query, для имитации backend. */
 export function parseRequest(args: string | FetchArgs): ParsedRequest {
   const { url, method = 'GET', body, params } = typeof args === 'string' ? { url: args } : args;
   const [rawPath = '', rawQuery = ''] = url.replace(/^\/+/, '').split('?');

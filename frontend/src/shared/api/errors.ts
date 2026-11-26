@@ -17,6 +17,10 @@ export function getErrorMessage(error: FetchBaseQueryError | SerializedError | u
     if (error.status === 'FETCH_ERROR') {
       return 'Сервер ClipHunter недоступен. Проверьте, что backend запущен, и повторите';
     }
+    // nginx отклоняет слишком большое тело своей HTML-страницей, а не JSON backend
+    if (error.status === 'PARSING_ERROR' && error.originalStatus === 413) {
+      return 'Файл больше допустимого размера';
+    }
     if (error.status === 'PARSING_ERROR' || error.status === 'TIMEOUT_ERROR') {
       return 'Сервер ответил некорректно. Повторите попытку через минуту';
     }

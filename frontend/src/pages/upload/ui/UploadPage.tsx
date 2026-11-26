@@ -23,7 +23,7 @@ export function UploadPage() {
           </PixelHeading>
           <p className={styles.lead}>
             Подойдёт запись стрима, игровой сессии или подкаста. Чем больше в ней живой речи, тем
-            точнее Бобби найдёт моменты.
+            точнее Бобби найдёт моменты: он ищет их по тексту расшифровки.
           </p>
           <DemoApiNotice />
           <UploadVideoForm />

@@ -1,7 +1,9 @@
-import { Download } from 'lucide-react';
-import type { ClipStatus } from '@/shared/api';
+import { Download, RotateCcw } from 'lucide-react';
 
-import { clipApi, useGetClipDownloadQuery, useGetClipQuery } from '../api/clipApi';
+import { getErrorMessage, type ClipStatus } from '@/shared/api';
+import { Button } from '@/shared/ui';
+
+import { clipApi, useGetClipQuery, useLazyGetClipDownloadQuery } from '../api/clipApi';
 
 import styles from './ClipRow.module.css';
 
@@ -12,39 +14,88 @@ const STATUS_LABELS: Record<ClipStatus, string> = {
   failed: 'Не получилось',
 };
 
+const POLL_MS = 2000;
+
 interface ClipRowProps {
   clipId: string;
   title: string;
   fileName: string;
+  /** Нарезать заново: клип не получился или его больше нет на сервере. */
+  onRetry: () => void;
 }
 
-/** Строка готовящегося клипа: опрашивает статус, пока клип не будет готов. */
-export function ClipRow({ clipId, title, fileName }: ClipRowProps) {
-  // Читаем кеш до подписки, чтобы выключить опрос, как только клип готов или упал
-  const cached = clipApi.endpoints.getClip.useQueryState(clipId).data;
-  const settled = cached?.status === 'completed' || cached?.status === 'failed';
-  const { data: clip } = useGetClipQuery(clipId, {
-    pollingInterval: settled ? 0 : 1200,
+/** Строка клипа: опрашивает статус, пока клип не будет готов, и отдаёт файл. */
+export function ClipRow({ clipId, title, fileName, onRetry }: ClipRowProps) {
+  // Читаем кеш до подписки, чтобы выключить опрос, как только ждать больше нечего
+  const cached = clipApi.endpoints.getClip.useQueryState(clipId);
+  const settled =
+    cached.data?.status === 'completed' ||
+    cached.data?.status === 'failed' ||
+    isMissing(cached.error);
+  const { data: clip, error } = useGetClipQuery(clipId, {
+    pollingInterval: settled ? 0 : POLL_MS,
     skipPollingIfUnfocused: true,
   });
-  const ready = clip?.status === 'completed';
-  const { data: download, isFetching } = useGetClipDownloadQuery(clipId, { skip: !ready });
-  const status = clip?.status ?? 'pending';
+  const [requestDownload, download] = useLazyGetClipDownloadQuery();
+
+  const missing = isMissing(error);
+  const status = missing ? 'failed' : (clip?.status ?? 'pending');
+  const label = missing
+    ? 'Клипа нет на сервере'
+    : error
+      ? 'Нет связи с сервером'
+      : STATUS_LABELS[status];
+  const problem = download.error && getErrorMessage(download.error);
+
+  // Ссылка живёт ограниченное время, поэтому берём свежую на каждое нажатие
+  const onDownload = async () => {
+    const result = await requestDownload(clipId);
+    if (!result.data) return;
+    const link = document.createElement('a');
+    link.href = result.data.url;
+    link.download = fileName;
+    link.click();
+  };
 
   return (
     <li className={styles.row} data-status={status}>
       <span className={styles.indicator} aria-hidden="true" />
       <span className={styles.title}>{title}</span>
       <span className={styles.status} aria-live="polite">
-        {STATUS_LABELS[status]}
+        {label}
       </span>
-      {download && (
-        <a className={styles.download} href={download.url} download={fileName}>
-          <Download aria-hidden="true" />
+      {status === 'completed' && (
+        <Button
+          variant="text"
+          size="sm"
+          icon={<Download />}
+          onClick={() => void onDownload()}
+          loading={download.isFetching}
+          aria-label={`Скачать клип «${title}»`}
+        >
           Скачать
-        </a>
+        </Button>
       )}
-      {ready && !download && isFetching && <span className={styles.status}>Готовим ссылку</span>}
+      {status === 'failed' && (
+        <Button
+          variant="text"
+          size="sm"
+          icon={<RotateCcw />}
+          onClick={onRetry}
+          aria-label={`Нарезать заново «${title}»`}
+        >
+          Повторить
+        </Button>
+      )}
+      {problem && (
+        <span className={styles.problem} role="alert">
+          {problem}
+        </span>
+      )}
     </li>
   );
+}
+
+function isMissing(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'status' in error && error.status === 404;
 }

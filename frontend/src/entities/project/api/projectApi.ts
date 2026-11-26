@@ -36,7 +36,15 @@ export const projectApi = baseApi.injectEndpoints({
       invalidatesTags: (_result, _error, projectId) => [
         { type: 'Project', id: projectId },
         { type: 'Project', id: 'LIST' },
+        // Повторный запуск стирает прежние хайлайты
+        { type: 'Highlight', id: `project-${projectId}` },
       ],
+    }),
+
+    deleteProject: build.mutation<null, string>({
+      query: (projectId) => ({ url: `/projects/${projectId}`, method: 'DELETE' }),
+      // Тег самого проекта не трогаем: иначе открытая страница запросит уже удалённое
+      invalidatesTags: (_result, error) => (error ? [] : [{ type: 'Project', id: 'LIST' }]),
     }),
 
     listProjects: build.query<ProjectPageDto, { limit?: number; offset?: number } | undefined>({
@@ -66,6 +74,7 @@ export const {
   useCreateProjectMutation,
   useUploadVideoMutation,
   useStartProcessingMutation,
+  useDeleteProjectMutation,
   useListProjectsQuery,
   useGetProjectQuery,
   useGetProjectStatusQuery,

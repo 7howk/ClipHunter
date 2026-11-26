@@ -9,8 +9,7 @@ import type {
 } from '../contracts';
 
 /**
- * In-memory имитация backend. Используется целиком в режиме `mock` и для
- * ещё не реализованных этапов (обработка, хайлайты, клипы) в режиме `hybrid`.
+ * In-memory имитация backend для режима `mock`.
  * Живёт только в текущей вкладке: после перезагрузки данные исчезают.
  */
 
@@ -173,24 +172,6 @@ export const mockDb = {
     return strip(project);
   },
 
-  /**
-   * Режим hybrid: проект живёт в настоящем backend, а имитация берёт его
-   * метаданные, чтобы прогнать ещё не реализованные этапы pipeline.
-   */
-  adoptProject(dto: VideoProjectDto, file?: Blob): void {
-    const existing = projects.get(dto.id);
-    projects.set(dto.id, {
-      ...dto,
-      objectUrl: existing?.objectUrl ?? (file ? URL.createObjectURL(file) : null),
-      processStartedAt: existing?.processStartedAt ?? null,
-      status: existing?.status ?? dto.status,
-    });
-  },
-
-  isSimulating(projectId: string): boolean {
-    return projects.get(projectId)?.processStartedAt != null;
-  },
-
   listProjects(): VideoProjectDto[] {
     return [...projects.values()].map((project) => {
       refreshStatus(project);
@@ -234,7 +215,7 @@ export const mockDb = {
   startProcessing(projectId: string): VideoProjectDto | 'conflict' | undefined {
     const project = projects.get(projectId);
     if (!project) return undefined;
-    if (project.status === 'created') return 'conflict';
+    if (project.status !== 'uploaded' && project.status !== 'failed') return 'conflict';
     for (const [key, item] of highlights) if (item.project_id === projectId) highlights.delete(key);
     project.processStartedAt = Date.now();
     project.status = 'processing';
@@ -248,6 +229,7 @@ export const mockDb = {
     if (project.objectUrl) URL.revokeObjectURL(project.objectUrl);
     projects.delete(projectId);
     for (const [key, item] of highlights) if (item.project_id === projectId) highlights.delete(key);
+    for (const [key, clip] of clips) if (clip.project_id === projectId) clips.delete(key);
     return true;
   },
 
@@ -264,6 +246,11 @@ export const mockDb = {
   generateClip(highlightId: string): GeneratedClipDto | undefined {
     const highlight = highlights.get(highlightId);
     if (!highlight) return undefined;
+    // Как backend: повторный запрос возвращает уже созданный клип
+    const existing = [...clips.values()].find(
+      (item) => item.highlight_id === highlightId && item.status !== 'failed',
+    );
+    if (existing) return this.getClip(existing.id);
     const clip: MockClip = {
       id: id(),
       project_id: highlight.project_id,

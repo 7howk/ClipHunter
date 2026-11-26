@@ -5,18 +5,12 @@ export const API_URL = (env.VITE_API_URL ?? '').replace(/\/$/, '');
 
 /**
  * Как интерфейс общается с API:
- * - `hybrid` (по умолчанию) — всё, что backend уже умеет, идёт в настоящий REST API,
- *   а этапы, которых в backend ещё нет (обработка, хайлайты, клипы), имитируются в браузере;
- * - `mock` — весь API имитируется в браузере, backend не нужен (демонстрация без Docker);
- * - `real` — только настоящий backend, без имитации.
+ * - `real` (по умолчанию) — настоящий REST API backend;
+ * - `mock` — весь API имитируется в браузере, backend не нужен (демонстрация без Docker).
  */
-export type ApiMode = 'hybrid' | 'mock' | 'real';
+export type ApiMode = 'real' | 'mock';
 
-function readApiMode(value: string | undefined): ApiMode {
-  return value === 'mock' || value === 'real' ? value : 'hybrid';
-}
-
-export const API_MODE: ApiMode = readApiMode(env.VITE_API_MODE);
+export const API_MODE: ApiMode = env.VITE_API_MODE === 'mock' ? 'mock' : 'real';
 
 /** Совпадает с MAX_UPLOAD_SIZE_MB backend (.env.example в корне репозитория). */
 export const MAX_UPLOAD_SIZE_MB = Number(env.VITE_MAX_UPLOAD_SIZE_MB ?? 500);

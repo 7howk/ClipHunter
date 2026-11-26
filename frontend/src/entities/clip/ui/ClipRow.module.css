@@ -44,18 +44,10 @@
   font-size: var(--text-xs);
 }
 
-.download {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  font-weight: 500;
-}
-
-.download svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.75;
+.problem {
+  grid-column: 2 / -1;
+  color: var(--rec-ink);
+  font-size: var(--text-xs);
 }
 
 @keyframes blink {

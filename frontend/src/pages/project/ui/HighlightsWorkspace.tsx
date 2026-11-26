@@ -70,7 +70,9 @@ export function HighlightsWorkspace({ project, highlights, minScore }: Highlight
           ) : (
             <div className={styles.noPreview}>
               <p>Превью доступно во вкладке, из которой загружали видео.</p>
-              <p className={styles.noPreviewHint}>Таймкоды и нарезка работают и без него</p>
+              <p className={styles.noPreviewHint}>
+                Таймкоды и нарезка работают и без него, готовый клип можно скачать
+              </p>
             </div>
           )}
           <HighlightTimeline

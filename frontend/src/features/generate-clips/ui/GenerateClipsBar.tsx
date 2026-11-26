@@ -51,7 +51,7 @@ export function GenerateClipsBar({ projectId, selectedIds, total }: GenerateClip
   const selectedLabel = !selectedIds.length
     ? 'Отметьте моменты, которые нужно нарезать'
     : queue.length === 0
-      ? 'Всё выбранное уже нарезано, ссылки ниже'
+      ? 'Всё выбранное уже отправлено в нарезку, клипы ниже'
       : `Выбрано ${selectedIds.length} из ${total}`;
 
   return (

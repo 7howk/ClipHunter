@@ -116,36 +116,36 @@ ESLint (`no-restricted-imports`) и Steiger (`npm run lint:fsd`).
 
 ### Режимы API (`VITE_API_MODE`)
 
-| Режим                   | Что происходит                                                    | Когда использовать                |
-| ----------------------- | ----------------------------------------------------------------- | --------------------------------- |
-| `hybrid` (по умолчанию) | Реализованное backend идёт в настоящий API, остальное имитируется | обычная разработка и демонстрация |
-| `real`                  | только настоящий API                                              | проверка готового backend         |
-| `mock`                  | весь API в браузере, backend не нужен                             | показ без Docker, тесты           |
+| Режим                 | Что происходит                  | Когда использовать        |
+| --------------------- | ------------------------------- | ------------------------- |
+| `real` (по умолчанию) | только настоящий API            | обычная разработка и стек |
+| `mock`                | весь API в браузере без backend | показ без Docker          |
 
-Маршрутизацию делает `shared/api/hybridBaseQuery.ts`. Список имитируемых
-маршрутов — функция `isSimulatedPipelineRoute` в `shared/api/mock/mockBaseQuery.ts`.
+Выбор делает `shared/api/baseApi.ts`. Имитация работает только в режиме `mock`:
+если нужного endpoint нет в backend, в режиме `real` интерфейс честно говорит,
+что действие недоступно.
 
-### Что сейчас реализует backend
+### Что реализует backend
 
-`GET /health`, `POST /projects`, `GET /projects`, `GET /projects/{id}`,
-`GET /projects/{id}/status`, `POST /projects/{id}/upload`.
+`GET /health`; `POST` и `GET /projects`; `GET` и `DELETE /projects/{id}`;
+`GET /projects/{id}/status`; `POST /projects/{id}/upload`;
+`POST /projects/{id}/process`; `GET /projects/{id}/highlights`;
+`GET /highlights/{id}`; `POST /highlights/{id}/generate`;
+`GET /clips/{id}`; `GET /clips/{id}/download`.
 
 Загрузка — **поток в теле запроса, не multipart**: имя файла в query
 `filename`, `Content-Type` соответствует расширению (`getVideoContentType`).
 Лимиты: 500 МБ и 30 минут, валидируются и на клиенте, и на сервере.
 
-Имитируются: `POST /projects/{id}/process`, `GET /projects/{id}/highlights`,
-`/highlights/*`, `/clips/*`.
-
-### Рецепт: backend реализовал новый этап
+### Рецепт: в API появился новый endpoint
 
 1. Сверить схемы в `backend/src/cliphunter/application/dto.py` и
    `presentation/http/*.py` с `shared/api/contracts.ts`, обновить типы.
-2. Убрать маршрут из `isSimulatedPipelineRoute`.
-3. Обновить имитацию, чтобы режим `mock` по-прежнему повторял контракт.
-4. Поправить тесты `hybridBaseQuery.test.ts` и `mockBaseQuery.test.ts`.
+2. Добавить endpoint в `entities/<сущность>/api`.
+3. Обновить имитацию, чтобы режим `mock` повторял контракт.
+4. Покрыть сценарий тестом (`mockBaseQuery.test.ts` или тест страницы).
 5. Проверить сценарий в браузере против настоящего backend (раздел 10).
-6. Обновить таблицу в `frontend/README.md` и текст `DemoApiNotice`.
+6. Обновить таблицу в `frontend/README.md`.
 
 ### Ошибки
 
@@ -197,12 +197,12 @@ Backend отвечает в едином формате `{ "error": { "code", "m
 Тесты лежат рядом с кодом (`*.test.ts(x)`), запускаются `npm test`
 и не требуют backend.
 
-| Что                                             | Как                                                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Чистые функции (`shared/lib`, `features/*/lib`) | обычные unit-тесты, граничные значения                                               |
-| Слайсы                                          | редьюсер + селектор на корневом состоянии `{ [reducerPath]: state }`                 |
-| API-адаптеры                                    | `mockBaseQuery` и `createHybridBaseQuery` с поддельным `http` и `vi.useFakeTimers()` |
-| Компоненты                                      | Testing Library: роли и доступные имена, не CSS-классы                               |
+| Что                                             | Как                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| Чистые функции (`shared/lib`, `features/*/lib`) | обычные unit-тесты, граничные значения                                   |
+| Слайсы                                          | редьюсер + селектор на корневом состоянии `{ [reducerPath]: state }`     |
+| API-адаптеры                                    | `mockBaseQuery` и `vi.useFakeTimers()`; страницы — с подменённым `fetch` |
+| Компоненты                                      | Testing Library: роли и доступные имена, не CSS-классы                   |
 
 Компонентам нужен локальный store: `configureStore({ reducer: combineSlices(baseApi, …) })`.
 Импортировать store из `app` нельзя (правило FSD).
@@ -242,7 +242,7 @@ Backend отвечает в едином формате `{ "error": { "code", "m
 - Ветка от актуального `dev`: `feature/frontend-<задача>`.
 - Conventional Commits со scope `frontend`:
   `feat(frontend): add highlight timeline`, `fix(frontend): stop mascot jitter`,
-  `test(frontend): cover hybrid api routing`, `docs(frontend): describe api modes`.
+  `test(frontend): cover project page states`, `docs(frontend): describe api modes`.
 - Коммиты маленькие и законченные; PR — в `dev`, в описании — что сделано,
   как проверено, скриншоты.
 - Прямой push в `main` и `dev` запрещён.

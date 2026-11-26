@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
-ARG VITE_API_MODE=hybrid
+ARG VITE_API_MODE=real
 ARG VITE_MAX_UPLOAD_SIZE_MB=500
 ARG VITE_MAX_VIDEO_DURATION_SECONDS=1800
 ENV VITE_API_MODE=$VITE_API_MODE \

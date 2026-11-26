@@ -20,6 +20,10 @@
   color: var(--ink-3);
 }
 
+.actions {
+  justify-self: start;
+}
+
 .loading {
   color: var(--ink-2);
 }
